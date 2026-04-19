@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="card_corner_radius">14dp</dimen>
+    <dimen name="card_elevation">4dp</dimen>
+    <dimen name="card_padding">14dp</dimen>
+    <dimen name="button_corner_full">28dp</dimen>
+    <dimen name="fab_elevation">8dp</dimen>
+    <dimen name="screen_horizontal_padding">16dp</dimen>
+    <dimen name="section_spacing_large">24dp</dimen>
+    <dimen name="section_spacing_medium">16dp</dimen>
+    <dimen name="list_content_padding">12dp</dimen>
+</resources>

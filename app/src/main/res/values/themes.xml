@@ -1,8 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
     <style name="Theme.VirtualVolunteer" parent="Theme.Material3.Light.NoActionBar">
-        <item name="colorPrimary">@color/purple_500</item>
-        <item name="colorPrimaryVariant">@color/purple_700</item>
-        <item name="android:statusBarColor">@color/purple_700</item>
+        <!-- Brand / toolbar -->
+        <item name="colorPrimary">@color/purple_primary</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorPrimaryContainer">@color/purple_primary_light</item>
+        <item name="colorOnPrimaryContainer">@color/white</item>
+
+        <!-- Accent (FABs, filled actions via styles) -->
+        <item name="colorSecondary">@color/accent_pink</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <item name="colorSecondaryContainer">@color/accent_pink</item>
+        <item name="colorOnSecondaryContainer">@color/white</item>
+
+        <!-- Surfaces & text -->
+        <item name="android:colorBackground">@color/background_light</item>
+        <item name="colorSurface">@color/surface_white</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
+        <item name="colorOutline">@color/text_secondary</item>
+
+        <!-- Highlights / badges -->
+        <item name="colorTertiary">@color/secondary_ui</item>
+        <item name="colorOnTertiary">@color/white</item>
+
+        <!-- System bars: match dark purple -->
+        <item name="android:navigationBarColor">@color/purple_primary_dark</item>
+        <item name="android:statusBarColor">@color/purple_primary_dark</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="ThemeOverlay.VirtualVolunteer.Toolbar" parent="ThemeOverlay.Material3.ActionBar">
+        <item name="colorPrimary">@color/purple_primary</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="android:textColorPrimary">@color/white</item>
+        <item name="android:textColorSecondary">@color/white</item>
+        <item name="colorControlNormal">@color/white</item>
     </style>
 </resources>

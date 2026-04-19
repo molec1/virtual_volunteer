@@ -1,38 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
+    style="@style/Widget.VirtualVolunteer.Card"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp">
+    android:layout_marginBottom="10dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="12dp">
+        android:padding="@dimen/card_padding">
 
         <TextView
             android:id="@+id/registryIdText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
-            android:textColor="?android:attr/textColorSecondary"
+            android:textAppearance="@style/TextAppearance.VirtualVolunteer.Caption"
             tools:text="id=42" />
 
         <TextView
             android:id="@+id/registryScanText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="4dp"
-            android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+            android:paddingTop="6dp"
+            android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+            android:textColor="@color/text_primary"
             tools:text="CODE123" />
 
         <TextView
             android:id="@+id/registryNotesText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="4dp"
-            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+            android:paddingTop="6dp"
+            android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
             android:visibility="gone"
             tools:text="Notes"
             tools:visibility="visible" />
@@ -41,9 +42,8 @@
             android:id="@+id/registryCreatedText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="6dp"
-            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-            android:textColor="?android:attr/textColorSecondary"
+            android:paddingTop="8dp"
+            android:textAppearance="@style/TextAppearance.VirtualVolunteer.Caption"
             tools:text="Created …" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

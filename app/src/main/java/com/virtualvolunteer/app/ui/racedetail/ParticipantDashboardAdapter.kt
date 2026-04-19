@@ -1,10 +1,10 @@
 package com.virtualvolunteer.app.ui.racedetail
 
-import android.graphics.Color
 import android.graphics.Typeface
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -100,18 +100,19 @@ class ParticipantDashboardAdapter(
                 binding.participantMovingTime.visibility = View.GONE
             }
 
+            val ctx = binding.root.context
             if (finishMs != null) {
-                binding.participantFinishTime.text = binding.root.context.getString(
+                binding.participantFinishTime.text = ctx.getString(
                     R.string.participant_finish_fmt,
                     RaceUiFormatter.formatDateTime(finishMs),
                 )
-                binding.participantFinishTime.setTextColor(Color.BLACK)
+                binding.participantFinishTime.setTextColor(ContextCompat.getColor(ctx, R.color.accent_pink))
                 binding.root.alpha = 1f
             } else {
-                binding.participantFinishTime.text = binding.root.context.getString(
+                binding.participantFinishTime.text = ctx.getString(
                     R.string.participant_no_finish_yet,
                 )
-                binding.participantFinishTime.setTextColor(0xFF666666.toInt())
+                binding.participantFinishTime.setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary))
                 binding.root.alpha = 0.92f
             }
 

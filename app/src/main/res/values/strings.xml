@@ -4,6 +4,7 @@
     <string name="start_new_race">Start new race</string>
     <string name="empty_races">No races yet. Tap \"Start new race\".</string>
     <string name="race_detail_title">Race</string>
+    <string name="race_detail_section_export">Export</string>
     <string name="race_status_label">Status</string>
     <string name="race_created_label">Created</string>
     <string name="race_location_label">Location</string>

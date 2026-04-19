@@ -5,19 +5,22 @@
     android:id="@+id/scrollContent"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/background_light"
     android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:paddingHorizontal="@dimen/screen_horizontal_padding"
+        android:paddingTop="12dp"
+        android:paddingBottom="28dp">
 
         <TextView
             android:id="@+id/raceIdText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+            android:textAppearance="@style/TextAppearance.VirtualVolunteer.ScreenTitle"
             tools:text="Race id" />
 
         <TextView
@@ -25,23 +28,23 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="8dp"
-            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+            android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
             tools:text="Created: ..." />
 
         <TextView
             android:id="@+id/locationText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="4dp"
-            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+            android:paddingTop="6dp"
+            android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
             tools:text="Location: ..." />
 
         <TextView
             android:id="@+id/statusText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="4dp"
-            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+            android:paddingTop="6dp"
+            android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
             tools:text="Status: ..." />
 
         <LinearLayout
@@ -49,7 +52,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:paddingTop="12dp"
+            android:paddingTop="@dimen/section_spacing_medium"
             android:visibility="gone"
             tools:visibility="visible">
 
@@ -57,7 +60,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/timer_label"
-                android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
+                android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel"
+                android:textColor="@color/text_primary" />
 
             <TextView
                 android:id="@+id/timerValue"
@@ -65,21 +69,25 @@
                 android:layout_height="wrap_content"
                 android:paddingStart="12dp"
                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+                android:textColor="@color/accent_pink"
                 tools:text="00:00" />
         </LinearLayout>
 
+        <!-- Before start -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnPreStartPhoto"
+            style="@style/Widget.VirtualVolunteer.Button.Secondary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="@dimen/section_spacing_large"
             android:text="@string/btn_pre_start_photo" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnStartRace"
+            style="@style/Widget.VirtualVolunteer.Button.Primary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="10dp"
             android:text="@string/btn_start_race" />
 
         <LinearLayout
@@ -87,104 +95,122 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingTop="8dp"
+            android:paddingTop="@dimen/section_spacing_medium"
             android:visibility="gone"
             tools:visibility="visible">
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnTakeFinishPhoto"
+                style="@style/Widget.VirtualVolunteer.Button.Primary"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/btn_take_finish_photo" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnFinishRace"
+                style="@style/Widget.VirtualVolunteer.Button.Primary"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="10dp"
                 android:text="@string/btn_finish_race" />
         </LinearLayout>
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnExport"
+        <!-- Export -->
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:paddingTop="@dimen/section_spacing_large"
+            android:text="@string/race_detail_section_export"
+            android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnExport"
+            style="@style/Widget.VirtualVolunteer.Button.Secondary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
             android:text="@string/btn_export_results" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnExportTimesCsv"
+            style="@style/Widget.VirtualVolunteer.Button.Secondary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="10dp"
             android:text="@string/btn_export_times_csv" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnExportParticipantsCsv"
+            style="@style/Widget.VirtualVolunteer.Button.Secondary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="10dp"
             android:text="@string/btn_export_participants_csv" />
 
+        <!-- Offline -->
         <TextView
             android:id="@+id/offlineTestHeader"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="24dp"
+            android:paddingTop="@dimen/section_spacing_large"
             android:text="@string/offline_test_header"
-            android:textAppearance="@style/TextAppearance.Material3.TitleSmall" />
+            android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnImportStartPhotos"
+            style="@style/Widget.VirtualVolunteer.Button.Secondary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="10dp"
             android:text="@string/btn_import_start_photos" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnImportFinishPhotos"
+            style="@style/Widget.VirtualVolunteer.Button.Secondary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="10dp"
             android:text="@string/btn_import_finish_photos" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnBuildTestProtocol"
+            style="@style/Widget.VirtualVolunteer.Button.Secondary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="10dp"
             android:text="@string/btn_build_test_protocol" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnTestSingleFinishPhoto"
+            style="@style/Widget.VirtualVolunteer.Button.Secondary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="10dp"
             android:text="@string/btn_test_single_finish_photo" />
 
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/dashboardCard"
+            style="@style/Widget.VirtualVolunteer.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            app:cardElevation="2dp">
+            android:layout_marginTop="@dimen/section_spacing_large">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="12dp">
+                android:padding="@dimen/card_padding">
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/dashboard_preview_title"
-                    android:textAppearance="@style/TextAppearance.Material3.TitleSmall" />
+                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel" />
 
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="12dp"
                     android:minHeight="120dp">
 
                     <ImageView
@@ -205,16 +231,16 @@
                         android:layout_gravity="center"
                         android:padding="16dp"
                         android:text="@string/dashboard_no_photo_hint"
-                        android:textAppearance="@style/TextAppearance.Material3.BodyMedium" />
+                        android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta" />
                 </FrameLayout>
 
                 <TextView
                     android:id="@+id/dashboardParticipantsTitle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
+                    android:layout_marginTop="@dimen/section_spacing_medium"
                     android:text="@string/dashboard_participants_title"
-                    android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
+                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel"
                     android:visibility="gone"
                     tools:visibility="visible" />
 
@@ -234,29 +260,29 @@
 
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/pipelineDebugCard"
+            style="@style/Widget.VirtualVolunteer.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardElevation="2dp">
+            android:layout_marginTop="@dimen/section_spacing_medium">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="12dp">
+                android:padding="@dimen/card_padding">
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/pipeline_debug_title"
-                    android:textAppearance="@style/TextAppearance.Material3.TitleSmall" />
+                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel" />
 
                 <ScrollView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="10dp"
                     android:fillViewport="false"
-                    android:maxHeight="140dp"
+                    android:maxHeight="160dp"
                     android:nestedScrollingEnabled="false"
                     android:scrollbars="vertical">
 
@@ -265,8 +291,9 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:fontFamily="monospace"
-                        android:textSize="10sp"
+                        android:textColor="@color/text_secondary"
                         android:textIsSelectable="true"
+                        android:textSize="11sp"
                         tools:text="Pipeline log…" />
                 </ScrollView>
             </LinearLayout>

@@ -1,7 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_500">#6750A4</color>
-    <color name="purple_700">#4F378B</color>
+    <!-- Palette (exact values — do not substitute) -->
+    <color name="purple_primary">#3B245A</color>
+    <color name="purple_primary_dark">#2F1E4A</color>
+    <color name="purple_primary_light">#4A2E70</color>
+    <color name="accent_pink">#E91E63</color>
+    <color name="background_light">#F5F5F7</color>
+    <color name="surface_white">#FFFFFF</color>
+    <color name="text_primary">#1C1C1E</color>
+    <color name="text_secondary">#6B6B73</color>
+    <color name="secondary_ui">#5E3A87</color>
+
     <color name="white">#FFFFFF</color>
-    <color name="black">#000000</color>
 </resources>

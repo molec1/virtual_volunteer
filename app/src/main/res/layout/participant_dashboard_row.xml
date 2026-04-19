@@ -1,20 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    style="@style/Widget.VirtualVolunteer.Card"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp">
+    android:layout_marginBottom="10dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="10dp">
+        android:padding="@dimen/card_padding">
 
         <ImageView
             android:id="@+id/participantThumb"
-            android:layout_width="52dp"
-            android:layout_height="52dp"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
             android:layout_gravity="center_vertical"
             android:background="@drawable/bg_placeholder_photo"
             android:contentDescription="@string/participant_thumb_cd"
@@ -24,7 +26,7 @@
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
+            android:layout_marginStart="@dimen/section_spacing_medium"
             android:layout_weight="1"
             android:orientation="vertical">
 
@@ -40,6 +42,7 @@
                     android:layout_height="wrap_content"
                     android:paddingEnd="8dp"
                     android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
+                    android:textColor="@color/secondary_ui"
                     android:textStyle="bold"
                     android:visibility="gone"
                     tools:text="#1"
@@ -53,28 +56,18 @@
                     android:background="?attr/selectableItemBackground"
                     android:clickable="true"
                     android:focusable="true"
-                    android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
+                    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+                    android:textColor="@color/text_primary"
                     tools:text="Name or tap to add" />
             </LinearLayout>
 
             <TextView
-                android:id="@+id/participantEmbeddingDigest"
+                android:id="@+id/participantFinishTime"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingTop="2dp"
-                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                android:textColor="?android:attr/textColorSecondary"
-                tools:text="Embedding…" />
-
-            <TextView
-                android:id="@+id/participantRegistryInfo"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingTop="2dp"
-                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                android:visibility="gone"
-                tools:text="Registry info"
-                tools:visibility="visible" />
+                android:paddingTop="6dp"
+                android:textAppearance="@style/TextAppearance.VirtualVolunteer.FinishHighlight"
+                tools:text="Finish: …" />
 
             <TextView
                 android:id="@+id/participantMovingTime"
@@ -82,25 +75,36 @@
                 android:layout_height="wrap_content"
                 android:paddingTop="4dp"
                 android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                android:textColor="@color/secondary_ui"
                 android:textStyle="bold"
                 android:visibility="gone"
                 tools:text="Moving: 12:34"
                 tools:visibility="visible" />
 
             <TextView
-                android:id="@+id/participantFinishTime"
+                android:id="@+id/participantEmbeddingDigest"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingTop="2dp"
-                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                tools:text="Finish: …" />
+                android:paddingTop="6dp"
+                android:textAppearance="@style/TextAppearance.VirtualVolunteer.Caption"
+                tools:text="Embedding…" />
+
+            <TextView
+                android:id="@+id/participantRegistryInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="4dp"
+                android:textAppearance="@style/TextAppearance.VirtualVolunteer.Caption"
+                android:visibility="gone"
+                tools:text="Registry info"
+                tools:visibility="visible" />
 
             <TextView
                 android:id="@+id/participantScannedPayload"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingTop="2dp"
-                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+                android:paddingTop="6dp"
+                android:textAppearance="@style/TextAppearance.VirtualVolunteer.Caption"
                 android:visibility="gone"
                 tools:text="Scan: …"
                 tools:visibility="visible" />
@@ -119,7 +123,8 @@
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/btn_scan_code_cd"
                 android:padding="8dp"
-                android:src="@android:drawable/ic_menu_camera" />
+                android:src="@android:drawable/ic_menu_camera"
+                app:tint="@color/accent_pink" />
 
             <ImageButton
                 android:id="@+id/btnRemoveParticipant"
@@ -128,7 +133,8 @@
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/btn_remove_participant_cd"
                 android:padding="8dp"
-                android:src="@android:drawable/ic_menu_delete" />
+                android:src="@android:drawable/ic_menu_delete"
+                app:tint="@color/text_secondary" />
         </LinearLayout>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
