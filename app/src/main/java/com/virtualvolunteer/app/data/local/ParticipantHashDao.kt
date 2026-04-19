@@ -29,11 +29,31 @@ interface ParticipantHashDao {
 
     @Query(
         """
+        SELECT id FROM race_participant_hashes
+        WHERE raceId = :raceId
+          AND LENGTH(TRIM(:payload)) > 0
+          AND TRIM(IFNULL(scannedPayload, '')) = TRIM(:payload)
+        """,
+    )
+    suspend fun listParticipantIdsWithScannedPayload(raceId: String, payload: String): List<Long>
+
+    @Query(
+        """
         SELECT 
             h.id AS participantId,
             h.raceId AS raceId,
-            h.embedding AS embedding,
-            h.embeddingFailed AS embeddingFailed,
+            COALESCE(
+                (SELECT pe.embedding FROM participant_embeddings pe 
+                 WHERE pe.participantId = h.id ORDER BY pe.id ASC LIMIT 1),
+                h.embedding
+            ) AS embedding,
+            CASE 
+                WHEN EXISTS (
+                    SELECT 1 FROM participant_embeddings pe2
+                    WHERE pe2.participantId = h.id AND LENGTH(TRIM(pe2.embedding)) > 0
+                ) THEN 0
+                ELSE h.embeddingFailed
+            END AS embeddingFailed,
             h.sourcePhoto AS sourcePhoto,
             h.faceThumbnailPath AS faceThumbnailPath,
             COALESCE(NULLIF(TRIM(h.scannedPayload), ''), ir.scannedPayload) AS scannedPayload,
@@ -63,8 +83,18 @@ interface ParticipantHashDao {
         SELECT 
             h.id AS participantId,
             h.raceId AS raceId,
-            h.embedding AS embedding,
-            h.embeddingFailed AS embeddingFailed,
+            COALESCE(
+                (SELECT pe.embedding FROM participant_embeddings pe 
+                 WHERE pe.participantId = h.id ORDER BY pe.id ASC LIMIT 1),
+                h.embedding
+            ) AS embedding,
+            CASE 
+                WHEN EXISTS (
+                    SELECT 1 FROM participant_embeddings pe2
+                    WHERE pe2.participantId = h.id AND LENGTH(TRIM(pe2.embedding)) > 0
+                ) THEN 0
+                ELSE h.embeddingFailed
+            END AS embeddingFailed,
             h.sourcePhoto AS sourcePhoto,
             h.faceThumbnailPath AS faceThumbnailPath,
             COALESCE(NULLIF(TRIM(h.scannedPayload), ''), ir.scannedPayload) AS scannedPayload,

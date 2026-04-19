@@ -1,11 +1,10 @@
 package com.virtualvolunteer.app.domain.participants
 
-import com.virtualvolunteer.app.data.local.RaceParticipantHashEntity
+import com.virtualvolunteer.app.domain.matching.ParticipantEmbeddingSet
 
 /**
- * Abstraction over where participant face descriptors come from.
- * MVP uses race-local hashes only; later this can delegate to a global participant repository.
+ * Abstraction over where participant face descriptors come from (multi-embedding per participant).
  */
 fun interface RaceParticipantPool {
-    suspend fun participantHashes(raceId: String): List<RaceParticipantHashEntity>
+    suspend fun participantEmbeddingSets(raceId: String): List<ParticipantEmbeddingSet>
 }

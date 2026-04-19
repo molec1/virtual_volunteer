@@ -36,4 +36,13 @@ interface FinishDetectionDao {
 
     @Query("SELECT COUNT(*) FROM finish_detections WHERE raceId = :raceId")
     fun observeCountForRace(raceId: String): Flow<Int>
+
+    @Query(
+        """
+        UPDATE finish_detections 
+        SET participantHashId = :newParticipantId 
+        WHERE raceId = :raceId AND participantHashId = :oldParticipantId
+        """,
+    )
+    suspend fun reassignParticipant(raceId: String, oldParticipantId: Long, newParticipantId: Long): Int
 }

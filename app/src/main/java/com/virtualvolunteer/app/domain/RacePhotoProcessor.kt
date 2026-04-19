@@ -5,6 +5,7 @@ import android.graphics.Rect
 import android.util.Log
 import com.virtualvolunteer.app.VirtualVolunteerApp
 import com.virtualvolunteer.app.data.files.RacePaths
+import com.virtualvolunteer.app.data.local.EmbeddingSourceType
 import com.virtualvolunteer.app.data.local.RaceParticipantHashEntity
 import com.virtualvolunteer.app.data.repository.RaceRepository
 import com.virtualvolunteer.app.domain.debug.FinishFaceDebugRow
@@ -18,7 +19,6 @@ import com.virtualvolunteer.app.domain.face.FaceThumbnailSaver
 import com.virtualvolunteer.app.domain.face.MlKitFaceDetector
 import com.virtualvolunteer.app.domain.face.OrientedPhotoBitmap
 import com.virtualvolunteer.app.domain.matching.FaceMatchEngine
-import com.virtualvolunteer.app.domain.matching.MatchScore
 import com.virtualvolunteer.app.domain.participants.RaceParticipantPool
 import com.virtualvolunteer.app.domain.time.PhotoTimestampResolver
 import kotlinx.coroutines.Dispatchers
@@ -143,8 +143,8 @@ class RacePhotoProcessor(
                 }
 
                 if (!embeddingFailed && vec != null) {
-                    val existingPool = races.listParticipantHashes(raceId).filter { !it.embeddingFailed }
-                    val duplicateOf = matcher.match(vec, existingPool)
+                    val existingSets = races.listParticipantEmbeddingSets(raceId).filter { it.hasEmbeddings }
+                    val duplicateOf = matcher.match(vec, existingSets)
                     if (duplicateOf != null) {
                         if (thumbFile.exists()) thumbFile.delete()
                         pipelineLog(
@@ -175,6 +175,7 @@ class RacePhotoProcessor(
                         displayName = null,
                         createdAtEpochMillis = createdAt,
                     ),
+                    initialEmbeddingSource = EmbeddingSourceType.START,
                 )
                 globalId?.let { g ->
                     pipelineLog(
@@ -238,12 +239,12 @@ class RacePhotoProcessor(
         try {
             val detected = faces.detectFaces(bmp)
             Log.i(TAG, "analyzeFinishDebug file=${photoFile.name} detectedFaceCount=${detected.size}")
-            val basePool = pool.participantHashes(raceId).filter { !it.embeddingFailed }
+            val baseSets = pool.participantEmbeddingSets(raceId).filter { it.hasEmbeddings }
             val threshold = matcher.threshold()
 
             val rows = ArrayList<FinishFaceDebugRow>(detected.size)
             val margin = FaceCropBounds.DEFAULT_MARGIN_PER_SIDE
-            var availableThisPhoto = basePool.toMutableList()
+            var availableThisPhoto = baseSets.toMutableList()
             detected.forEachIndexed { index, face ->
                 val raw = Rect(face.boundingBox)
                 val expanded = FaceCropBounds.expandFaceRect(raw, bmp.width, bmp.height, margin)
@@ -287,11 +288,12 @@ class RacePhotoProcessor(
                 crop.recycle()
                 val preview = previewEmbedding(vec)
                 val picked = matcher.match(vec, availableThisPhoto)
-                val nearestDiag = matcher.nearest(vec, basePool)
+                val nearestDiag = matcher.nearest(vec, baseSets)
+                val pickedSet = picked?.let { p -> baseSets.find { it.participant.id == p.id } }
                 val nearestId = picked?.id ?: nearestDiag?.participant?.id
                 val sim = when {
-                    picked != null ->
-                        EmbeddingMath.cosineSimilarity(vec, EmbeddingMath.parseCommaSeparated(picked.embedding))
+                    picked != null && pickedSet != null ->
+                        matcher.nearest(vec, listOf(pickedSet))!!.cosineSimilarity
                     nearestDiag != null -> nearestDiag.cosineSimilarity
                     else -> null
                 }
@@ -300,14 +302,14 @@ class RacePhotoProcessor(
                 val hasOfficialFinish = matchRow?.protocolFinishTimeEpochMillis != null
                 val wouldRecord = picked != null
                 if (picked != null) {
-                    availableThisPhoto.removeAll { it.id == picked.id }
+                    availableThisPhoto.removeAll { it.participant.id == picked.id }
                 }
                 rows.add(
                     FinishFaceDebugRow(
                         faceIndex = index + 1,
                         embeddingPreview = preview,
                         nearestParticipantId = nearestId,
-                        nearestParticipantEmbeddingPreview = picked?.embedding?.let { e ->
+                        nearestParticipantEmbeddingPreview = pickedSet?.embeddingStrings?.firstOrNull()?.let { e ->
                             if (e.length > 64) e.take(64) + "…" else e
                         } ?: nearestDiag?.participant?.embedding?.let { e ->
                             if (e.length > 64) e.take(64) + "…" else e
@@ -465,16 +467,16 @@ class RacePhotoProcessor(
 
                 pipelineLog("face#$faceNum descriptorCreated=true dim=${vec.size}")
 
-                val basePool = pool.participantHashes(raceId)
-                val embeddingPool = basePool.filter { !it.embeddingFailed }
+                val baseSets = pool.participantEmbeddingSets(raceId)
+                val embeddingPool = baseSets.filter { it.hasEmbeddings }
                 val availableThisPhoto = embeddingPool.toMutableList()
 
                 pipelineLog(
-                    "participantPoolSize=${basePool.size} withValidEmbedding=${embeddingPool.size} " +
+                    "participantPoolSize=${baseSets.size} withValidEmbedding=${embeddingPool.size} " +
                         "availableThisPhoto=${availableThisPhoto.size} threshold=${matcher.threshold()}",
                 )
                 sb.appendLine(
-                    "poolSize=${basePool.size} embeddingPool=${embeddingPool.size} availableThisPhoto=${availableThisPhoto.size}",
+                    "poolSize=${baseSets.size} embeddingPool=${embeddingPool.size} availableThisPhoto=${availableThisPhoto.size}",
                 )
 
                 val nearestAll = matcher.nearest(vec, embeddingPool)
@@ -482,7 +484,7 @@ class RacePhotoProcessor(
                 val nCos = nearestAll?.cosineSimilarity
                 val thr = matcher.threshold()
                 pipelineLog(
-                    "face#$faceNum nearestParticipantId=$nId cosine=$nCos threshold=$thr passesDistance=${
+                    "face#$faceNum nearestParticipantId=$nId bestParticipantCos=$nCos threshold=$thr passesDistance=${
                         nCos != null && nCos >= thr
                     }",
                 )
@@ -519,12 +521,21 @@ class RacePhotoProcessor(
                             displayName = null,
                             createdAtEpochMillis = finishTimeEpochMillis,
                         ),
+                        initialEmbeddingSource = EmbeddingSourceType.FINISH_AUTO,
                     )
                     races.listParticipantHashes(raceId).first { it.id == newId }
                 }
 
-                val matchVec = EmbeddingMath.parseCommaSeparated(resolvedParticipant.embedding)
-                val cos = EmbeddingMath.cosineSimilarity(vec, matchVec)
+                val resolvedSet = embeddingPool.find { it.participant.id == resolvedParticipant.id }
+                    ?: baseSets.find { it.participant.id == resolvedParticipant.id }
+                val cos = when {
+                    matchInAvailable != null && resolvedSet != null && resolvedSet.hasEmbeddings ->
+                        matcher.nearest(vec, listOf(resolvedSet))!!.cosineSimilarity
+                    matchInAvailable == null ->
+                        1f
+                    else ->
+                        EmbeddingMath.cosineSimilarity(vec, EmbeddingMath.parseCommaSeparated(resolvedParticipant.embedding))
+                }
 
                 val outcome = races.recordFinishDetection(
                     raceId = raceId,
@@ -533,11 +544,27 @@ class RacePhotoProcessor(
                     sourcePhotoPath = photoFile.absolutePath,
                     matchCosineSimilarity = cos,
                 )
+
+                val appendedEmbedding = if (matchInAvailable != null) {
+                    races.appendParticipantEmbeddingIfNew(
+                        raceId = raceId,
+                        participantId = resolvedParticipant.id,
+                        embeddingCommaSeparated = EmbeddingMath.formatCommaSeparated(vec),
+                        sourceType = EmbeddingSourceType.FINISH_AUTO,
+                        sourcePhotoPath = photoFile.absolutePath,
+                        qualityScore = cos,
+                        createdAtEpochMillis = finishTimeEpochMillis,
+                    )
+                } else {
+                    false
+                }
                 newRows++
 
                 pipelineLog(
-                    "face#$faceNum finish_detection stored participant=${resolvedParticipant.id} " +
-                        "detectedAt=$finishTimeEpochMillis cos=$cos " +
+                    "face#$faceNum candidateSource=${photoFile.absolutePath} nearestParticipantId=$nId bestScore=$nCos " +
+                        "matchedParticipant=${resolvedParticipant.id} matchCos=$cos embeddingAppended=$appendedEmbedding " +
+                        "finish_detection stored " +
+                        "detectedAt=$finishTimeEpochMillis " +
                         "officialProtocol=${outcome.officialProtocolFinishMillis} " +
                         "protocolFinishUpdated=${outcome.protocolFinishTimeUpdated} " +
                         "ignoredLateSeries=${outcome.detectionIgnoredForProtocolSeries}",
@@ -554,7 +581,7 @@ class RacePhotoProcessor(
                         "ignoredLate=${outcome.detectionIgnoredForProtocolSeries}",
                 )
 
-                availableThisPhoto.removeAll { it.id == resolvedParticipant.id }
+                availableThisPhoto.removeAll { it.participant.id == resolvedParticipant.id }
 
                 crop.recycle()
             }

@@ -20,6 +20,7 @@ class VirtualVolunteerApp : Application() {
             appContext = applicationContext,
             raceDao = database.raceDao(),
             participantHashDao = database.participantHashDao(),
+            participantEmbeddingDao = database.participantEmbeddingDao(),
             finishDetectionDao = database.finishDetectionDao(),
             identityRegistryDao = database.identityRegistryDao(),
         )

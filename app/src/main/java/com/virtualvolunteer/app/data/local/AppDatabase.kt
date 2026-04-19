@@ -1,6 +1,7 @@
 package com.virtualvolunteer.app.data.local
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -12,10 +13,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     entities = [
         RaceEntity::class,
         RaceParticipantHashEntity::class,
+        ParticipantEmbeddingEntity::class,
         FinishDetectionEntity::class,
         IdentityRegistryEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -23,6 +25,7 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun raceDao(): RaceDao
     abstract fun participantHashDao(): ParticipantHashDao
+    abstract fun participantEmbeddingDao(): ParticipantEmbeddingDao
     abstract fun finishDetectionDao(): FinishDetectionDao
     abstract fun identityRegistryDao(): IdentityRegistryDao
 
@@ -137,6 +140,71 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Splits legacy single-vector column on [RaceParticipantHashEntity] into [participant_embeddings].
+         * Finish-born rows (source path under finish_photos) get [EmbeddingSourceType.FINISH_AUTO].
+         */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `participant_embeddings` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `participantId` INTEGER NOT NULL,
+                        `raceId` TEXT NOT NULL,
+                        `embedding` TEXT NOT NULL,
+                        `sourceType` TEXT NOT NULL,
+                        `sourcePhotoPath` TEXT,
+                        `createdAtEpochMillis` INTEGER NOT NULL,
+                        `qualityScore` REAL,
+                        FOREIGN KEY(`raceId`) REFERENCES `races`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`participantId`) REFERENCES `race_participant_hashes`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_participant_embeddings_raceId` ON `participant_embeddings` (`raceId`)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_participant_embeddings_participantId` ON `participant_embeddings` (`participantId`)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_participant_embeddings_raceId_participantId` ON `participant_embeddings` (`raceId`, `participantId`)",
+                )
+
+                db.execSQL(
+                    """
+                    INSERT INTO `participant_embeddings` (
+                        participantId, raceId, embedding, sourceType, sourcePhotoPath, createdAtEpochMillis, qualityScore
+                    )
+                    SELECT
+                        id,
+                        raceId,
+                        embedding,
+                        CASE
+                            WHEN sourcePhoto LIKE '%finish_photos%' THEN 'FINISH_AUTO'
+                            ELSE 'START'
+                        END,
+                        sourcePhoto,
+                        createdAtEpochMillis,
+                        NULL
+                    FROM race_participant_hashes
+                    WHERE embeddingFailed = 0
+                      AND embedding IS NOT NULL
+                      AND LENGTH(TRIM(embedding)) > 0
+                    """.trimIndent(),
+                )
+
+                val cursor = db.query("SELECT COUNT(*) FROM participant_embeddings")
+                cursor.moveToFirst()
+                val n = cursor.getLong(0)
+                cursor.close()
+                Log.i(TAG, "MIGRATION_7_8 migrated participant_embeddings rows=$n")
+            }
+        }
+
+        private const val TAG = "AppDatabase"
+
         fun getInstance(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, DB_NAME)
                 .addMigrations(
@@ -145,6 +213,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_4_5,
                     MIGRATION_5_6,
                     MIGRATION_6_7,
+                    MIGRATION_7_8,
                 )
                 .fallbackToDestructiveMigration()
                 .build()

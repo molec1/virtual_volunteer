@@ -1,13 +1,17 @@
 package com.virtualvolunteer.app.data.repository
 
 import android.content.Context
+import android.util.Log
 import com.virtualvolunteer.app.data.files.RacePaths
+import com.virtualvolunteer.app.data.local.EmbeddingSourceType
 import com.virtualvolunteer.app.data.local.FinishDetectionDao
 import com.virtualvolunteer.app.data.local.FinishDetectionEntity
 import com.virtualvolunteer.app.data.local.IdentityRegistryDao
 import com.virtualvolunteer.app.data.local.IdentityRegistryEntity
 import com.virtualvolunteer.app.data.local.ParticipantDashboardDbRow
 import com.virtualvolunteer.app.data.local.ParticipantDashboardRow
+import com.virtualvolunteer.app.data.local.ParticipantEmbeddingDao
+import com.virtualvolunteer.app.data.local.ParticipantEmbeddingEntity
 import com.virtualvolunteer.app.data.local.ParticipantHashDao
 import com.virtualvolunteer.app.data.local.RaceDao
 import com.virtualvolunteer.app.data.local.RaceEntity
@@ -20,6 +24,7 @@ import com.virtualvolunteer.app.data.xml.RaceXmlSnapshot
 import com.virtualvolunteer.app.domain.face.EmbeddingMath
 import com.virtualvolunteer.app.domain.identity.GlobalIdentityResolution
 import com.virtualvolunteer.app.domain.matching.FaceMatchEngine
+import com.virtualvolunteer.app.domain.matching.ParticipantEmbeddingSet
 import com.virtualvolunteer.app.domain.time.PhotoTimestampResolver
 import com.virtualvolunteer.app.export.RaceCsvExport
 import com.virtualvolunteer.app.location.LocationCapture
@@ -50,6 +55,7 @@ class RaceRepository(
     private val appContext: Context,
     private val raceDao: RaceDao,
     private val participantHashDao: ParticipantHashDao,
+    private val participantEmbeddingDao: ParticipantEmbeddingDao,
     private val finishDetectionDao: FinishDetectionDao,
     private val identityRegistryDao: IdentityRegistryDao,
 ) {
@@ -57,6 +63,8 @@ class RaceRepository(
     companion object {
         /** Width of the “first finish series” window starting at the earliest detection instant. */
         const val FIRST_FINISH_SERIES_WINDOW_MS: Long = 30_000L
+
+        private const val TAG = "RaceRepository"
     }
 
     fun observeAllRaces(): Flow<List<RaceEntity>> = raceDao.observeAllRaces()
@@ -153,8 +161,97 @@ class RaceRepository(
         writeRaceXml(updated)
     }
 
-    suspend fun insertParticipantHash(row: RaceParticipantHashEntity): Long =
-        participantHashDao.insert(row)
+    /**
+     * Inserts a participant row and, when [RaceParticipantHashEntity.embeddingFailed] is false,
+     * records the first vector in [participant_embeddings] (see [initialEmbeddingSource]).
+     */
+    suspend fun insertParticipantHash(
+        row: RaceParticipantHashEntity,
+        initialEmbeddingSource: EmbeddingSourceType,
+    ): Long {
+        val id = participantHashDao.insert(row)
+        if (!row.embeddingFailed && row.embedding.isNotBlank()) {
+            participantEmbeddingDao.insert(
+                ParticipantEmbeddingEntity(
+                    participantId = id,
+                    raceId = row.raceId,
+                    embedding = row.embedding,
+                    sourceType = initialEmbeddingSource,
+                    sourcePhotoPath = row.sourcePhoto,
+                    createdAtEpochMillis = row.createdAtEpochMillis,
+                    qualityScore = null,
+                ),
+            )
+        }
+        syncParticipantPrimaryEmbeddingField(id)
+        return id
+    }
+
+    /**
+     * Build per-participant embedding sets for cosine matching (multi-vector).
+     * Falls back to legacy [RaceParticipantHashEntity.embedding] when the new table is empty.
+     */
+    suspend fun listParticipantEmbeddingSets(raceId: String): List<ParticipantEmbeddingSet> {
+        val hashes = participantHashDao.listForRace(raceId)
+        val byPid = participantEmbeddingDao.listForRace(raceId).groupBy { it.participantId }
+        return hashes.map { h ->
+            val fromTable = byPid[h.id].orEmpty().map { it.embedding }.filter { it.isNotBlank() }
+            val strings = if (fromTable.isNotEmpty()) {
+                fromTable
+            } else if (!h.embeddingFailed && h.embedding.isNotBlank()) {
+                listOf(h.embedding)
+            } else {
+                emptyList()
+            }
+            ParticipantEmbeddingSet(participant = h, embeddingStrings = strings)
+        }
+    }
+
+    /**
+     * Appends a finish (or merge) embedding if it is not already stored exactly for this participant.
+     * @return true if a new row was inserted.
+     */
+    suspend fun appendParticipantEmbeddingIfNew(
+        raceId: String,
+        participantId: Long,
+        embeddingCommaSeparated: String,
+        sourceType: EmbeddingSourceType,
+        sourcePhotoPath: String?,
+        qualityScore: Float?,
+        createdAtEpochMillis: Long,
+    ): Boolean {
+        if (embeddingCommaSeparated.isBlank()) return false
+        val existing = participantEmbeddingDao.listEmbeddingStringsForParticipant(participantId)
+        if (existing.any { it == embeddingCommaSeparated }) {
+            return false
+        }
+        participantEmbeddingDao.insert(
+            ParticipantEmbeddingEntity(
+                participantId = participantId,
+                raceId = raceId,
+                embedding = embeddingCommaSeparated,
+                sourceType = sourceType,
+                sourcePhotoPath = sourcePhotoPath,
+                createdAtEpochMillis = createdAtEpochMillis,
+                qualityScore = qualityScore,
+            ),
+        )
+        syncParticipantPrimaryEmbeddingField(participantId)
+        return true
+    }
+
+    private suspend fun syncParticipantPrimaryEmbeddingField(participantId: Long) {
+        val p = participantHashDao.getById(participantId) ?: return
+        val strings = participantEmbeddingDao.listEmbeddingStringsForParticipant(participantId)
+        val primary = strings.firstOrNull().orEmpty()
+        val failed = primary.isBlank()
+        participantHashDao.update(
+            p.copy(
+                embedding = primary,
+                embeddingFailed = failed,
+            ),
+        )
+    }
 
     suspend fun resolveGlobalIdentity(embedding: FloatArray): GlobalIdentityResolution {
         val rows = identityRegistryDao.listAll()
@@ -198,12 +295,60 @@ class RaceRepository(
     }
 
     suspend fun updateParticipantScan(raceId: String, participantId: Long, scannedPayload: String) {
+        val trimmed = scannedPayload.trim()
         val row = participantHashDao.getById(participantId) ?: return
         require(row.raceId == raceId)
-        participantHashDao.update(row.copy(scannedPayload = scannedPayload))
+        participantHashDao.update(row.copy(scannedPayload = trimmed))
         row.identityRegistryId?.let { rid ->
-            identityRegistryDao.updateScannedPayload(rid, scannedPayload)
+            identityRegistryDao.updateScannedPayload(rid, trimmed)
         }
+        mergeParticipantsSharingScannedPayload(raceId, keeperId = participantId, payload = trimmed)
+    }
+
+    /**
+     * When two protocol rows carry the same scanned code, merge extras into [keeperId]
+     * (finish detections + embeddings), preserving one official participant.
+     */
+    private suspend fun mergeParticipantsSharingScannedPayload(raceId: String, keeperId: Long, payload: String) {
+        if (payload.isBlank()) return
+        val ids = participantHashDao.listParticipantIdsWithScannedPayload(raceId, payload)
+        val donors = ids.filter { it != keeperId }.distinct()
+        if (donors.isEmpty()) return
+        Log.i(TAG, "mergeParticipantsSharingScannedPayload keeper=$keeperId donors=$donors payloadLen=${payload.length}")
+        for (donorId in donors) {
+            mergeParticipantIntoKeeper(raceId, keeperId = keeperId, donorId = donorId)
+        }
+    }
+
+    private suspend fun mergeParticipantIntoKeeper(raceId: String, keeperId: Long, donorId: Long) {
+        if (donorId == keeperId) return
+        val keeper = participantHashDao.getById(keeperId) ?: return
+        val donor = participantHashDao.getById(donorId) ?: return
+        require(keeper.raceId == raceId && donor.raceId == raceId)
+
+        finishDetectionDao.reassignParticipant(raceId, donorId, keeperId)
+        participantEmbeddingDao.reassignParticipant(raceId, donorId, keeperId)
+
+        val mergedScan = keeper.scannedPayload?.takeIf { it.isNotBlank() } ?: donor.scannedPayload
+        val mergedName = keeper.displayName?.takeIf { it.isNotBlank() } ?: donor.displayName
+        val mergedRegistryInfo = keeper.registryInfo ?: donor.registryInfo
+        val mergedIr = keeper.identityRegistryId ?: donor.identityRegistryId
+
+        participantHashDao.update(
+            keeper.copy(
+                scannedPayload = mergedScan,
+                displayName = mergedName,
+                registryInfo = mergedRegistryInfo,
+                identityRegistryId = mergedIr,
+            ),
+        )
+
+        participantHashDao.deleteById(donorId, raceId)
+
+        syncParticipantPrimaryEmbeddingField(keeperId)
+        recomputeProtocolFinishForParticipant(raceId, keeperId)
+        refreshProtocolXml(raceId)
+        Log.i(TAG, "mergeParticipantIntoKeeper done keeper=$keeperId mergedDonor=$donorId")
     }
 
     suspend fun updateParticipantDisplayName(raceId: String, participantId: Long, name: String?) {
@@ -344,14 +489,21 @@ class RaceRepository(
         val rows = participants.map { p ->
             val t = p.protocolFinishTimeEpochMillis!!
             val photoPath = resolvePhotoPathForProtocolFinish(raceId, p.id, t)
+            val emb = protocolEmbeddingForParticipant(p.id, p)
             ProtocolFinishRow(
                 participantHashId = p.id,
-                embedding = p.embedding,
+                embedding = emb,
                 finishTimeEpochMillis = t,
                 photoPath = photoPath,
             )
         }
         ProtocolXmlIo.write(RacePaths.protocolXml(appContext, raceId), raceId, rows, names)
+    }
+
+    private suspend fun protocolEmbeddingForParticipant(participantId: Long, legacy: RaceParticipantHashEntity): String {
+        val rows = participantEmbeddingDao.listForParticipant(participantId)
+        val first = rows.firstOrNull()?.embedding?.takeIf { it.isNotBlank() }
+        return first ?: legacy.embedding
     }
 
     private suspend fun resolvePhotoPathForProtocolFinish(

@@ -6,7 +6,7 @@ Before doing meaningful work on this codebase (features, refactors, debugging, m
 
 That document defines:
 
-- What the app is for and the main entities (**Race**, **Participant**, **FinishDetection**).
+- What the app is for and the main entities (**Race**, **Participant**, **ParticipantEmbedding**, **FinishDetection**).
 - Start vs finish pipelines and **non-negotiable invariants** (detection vs hashing, participant row when embedding fails, one official finish time per participant).
 - The **30-second first-series** finish aggregation rule.
 - Where UI, data, domain, and export code live.
@@ -17,8 +17,8 @@ Work should respect those rules unless the user explicitly changes product requi
 
 When you change behavior that affects:
 
-- pipelines (start/finish processing),
-- storage model (Room entities, migrations),
+- pipelines (start/finish processing, **multi-embedding match / append**),
+- storage model (Room entities, migrations, **`participant_embeddings`**),
 - finish aggregation or protocol/export semantics,
 - offline testing or debug logging contracts,
 

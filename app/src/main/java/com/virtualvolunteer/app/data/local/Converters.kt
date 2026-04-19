@@ -15,4 +15,15 @@ class Converters {
         } catch (_: IllegalArgumentException) {
             RaceStatus.CREATED
         }
+
+    @TypeConverter
+    fun embeddingSourceToString(v: EmbeddingSourceType): String = v.name
+
+    @TypeConverter
+    fun stringToEmbeddingSource(value: String): EmbeddingSourceType =
+        try {
+            EmbeddingSourceType.valueOf(value)
+        } catch (_: IllegalArgumentException) {
+            EmbeddingSourceType.START
+        }
 }
