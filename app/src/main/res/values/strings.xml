@@ -11,7 +11,13 @@
     <string name="btn_pre_start_photo">Take pre-start photo(s)</string>
     <string name="btn_take_finish_photo">Take finish photo</string>
     <string name="btn_finish_race">Finish race</string>
-    <string name="btn_export_results">Export results</string>
+    <string name="btn_export_results">Export results (ZIP)</string>
+    <string name="btn_export_times_csv">Export times (CSV)</string>
+    <string name="btn_export_participants_csv">Export participants (CSV)</string>
+    <string name="export_csv_times_saved">Times CSV saved</string>
+    <string name="export_csv_participants_saved">Participants CSV saved</string>
+    <string name="export_csv_failed">CSV export failed</string>
+    <string name="share_csv_chooser_title">Share CSV</string>
     <string name="timer_label">Elapsed</string>
     <string name="permission_camera_required">Camera permission is required for photos.</string>
     <string name="permission_location_denied">Location unavailable; race saved without coordinates.</string>
@@ -35,7 +41,9 @@
     <string name="participant_thumb_cd">Participant face thumbnail</string>
     <string name="pipeline_debug_title">Pipeline debug</string>
     <string name="participant_moving_time_fmt">Moving time: %1$s</string>
-    <string name="participant_detected_fmt">Detected: %1$s</string>
+    <string name="participant_rank_fmt">#%1$d</string>
+    <string name="participant_tap_to_name">Tap to add name</string>
+    <string name="participant_name_dialog_title">Participant name</string>
     <string name="participant_finish_fmt">Finish: %1$s</string>
     <string name="participant_scan_fmt">Scan: %1$s</string>
     <string name="delete_race_title">Delete race?</string>
@@ -48,4 +56,13 @@
     <string name="btn_scan_code_cd">Scan QR or barcode</string>
     <string name="btn_remove_participant_cd">Remove participant</string>
     <string name="toast_race_deleted">Race deleted</string>
+    <string name="participant_photos_sheet_title">Photos in this race</string>
+    <string name="participant_photos_empty">No image files found for this participant.</string>
+    <string name="participant_photo_tile_cd">Participant photo</string>
+    <string name="finish_photo_badge_cd">Finish photo</string>
+    <string name="identity_registry_title">Scanned on this device</string>
+    <string name="identity_registry_empty">No identities yet. They appear when start photos match the registry.</string>
+    <string name="identity_registry_id_fmt">Registry id %1$d</string>
+    <string name="identity_registry_no_scan">No code scanned yet</string>
+    <string name="fab_identity_registry_cd">Open list of identities on this device</string>
 </resources>

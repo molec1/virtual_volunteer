@@ -103,14 +103,28 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:text="@string/btn_finish_race" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnExport"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/btn_export_results" />
         </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnExport"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/btn_export_results" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnExportTimesCsv"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/btn_export_times_csv" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnExportParticipantsCsv"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/btn_export_participants_csv" />
 
         <TextView
             android:id="@+id/offlineTestHeader"

@@ -14,6 +14,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -317,6 +318,8 @@ class RaceDetailFragment : Fragment() {
         participantAdapter = ParticipantDashboardAdapter(
             onScanCode = { id -> openBarcodeScan(id) },
             onRemove = { id -> confirmRemoveParticipant(id) },
+            onEditDisplayName = { id, current -> showParticipantNameEditor(id, current) },
+            onOpenPhotos = { id -> openParticipantPhotos(id) },
         )
         binding.participantsRecycler.adapter = participantAdapter
         binding.participantsRecycler.itemAnimator = null
@@ -361,6 +364,8 @@ class RaceDetailFragment : Fragment() {
         binding.btnTakeFinishPhoto.setOnClickListener { onTakeFinishPhotoClicked() }
         binding.btnFinishRace.setOnClickListener { onFinishRaceClicked() }
         binding.btnExport.setOnClickListener { onExportClicked() }
+        binding.btnExportTimesCsv.setOnClickListener { onExportTimesCsvClicked() }
+        binding.btnExportParticipantsCsv.setOnClickListener { onExportParticipantsCsvClicked() }
 
         binding.btnImportStartPhotos.setOnClickListener {
             pickMultipleStartDocuments.launch(arrayOf("image/*"))
@@ -371,6 +376,25 @@ class RaceDetailFragment : Fragment() {
         binding.btnBuildTestProtocol.setOnClickListener { onBuildTestProtocolClicked() }
         binding.btnTestSingleFinishPhoto.setOnClickListener {
             pickSingleFinishDocument.launch(arrayOf("image/*"))
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
+        viewLifecycleOwner.lifecycleScope.launch {
+            val rows = withContext(Dispatchers.IO) { repo.getParticipantDashboardUi(raceId) }
+            val finishN = withContext(Dispatchers.IO) { repo.finishRecordCount(raceId) }
+            if (_binding == null) return@launch
+            participantAdapter.submitList(rows)
+            val showProtocol = rows.isNotEmpty() || finishN > 0
+            binding.dashboardParticipantsTitle.visibility =
+                if (showProtocol) View.VISIBLE else View.GONE
+            binding.participantsRecycler.visibility =
+                if (showProtocol) View.VISIBLE else View.GONE
+            binding.scrollContent.post {
+                binding.participantsRecycler.requestLayout()
+            }
         }
     }
 
@@ -536,6 +560,69 @@ class RaceDetailFragment : Fragment() {
         }
     }
 
+    private fun onExportTimesCsvClicked() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
+            val result = repo.exportTimesCsv(raceId)
+            withContext(Dispatchers.Main) {
+                result.onSuccess { file ->
+                    shareCsv(file, getString(R.string.export_csv_times_saved))
+                }.onFailure {
+                    Toast.makeText(requireContext(), R.string.export_csv_failed, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun onExportParticipantsCsvClicked() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
+            val result = repo.exportParticipantsCsv(raceId)
+            withContext(Dispatchers.Main) {
+                result.onSuccess { file ->
+                    shareCsv(file, getString(R.string.export_csv_participants_saved))
+                }.onFailure {
+                    Toast.makeText(requireContext(), R.string.export_csv_failed, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun shareCsv(file: File, toastLabel: String) {
+        Toast.makeText(requireContext(), toastLabel, Toast.LENGTH_SHORT).show()
+        val uri = FileProvider.getUriForFile(
+            requireContext(),
+            "${requireContext().packageName}.fileprovider",
+            file,
+        )
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/csv"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(Intent.createChooser(intent, getString(R.string.share_csv_chooser_title)))
+    }
+
+    private fun showParticipantNameEditor(participantId: Long, currentName: String?) {
+        val input = EditText(requireContext()).apply {
+            setText(currentName.orEmpty())
+            hint = getString(R.string.participant_tap_to_name)
+            setPadding(48, 32, 48, 16)
+        }
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.participant_name_dialog_title)
+            .setView(input)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val text = input.text?.toString()
+                lifecycleScope.launch(Dispatchers.IO) {
+                    (requireActivity().application as VirtualVolunteerApp).raceRepository
+                        .updateParticipantDisplayName(raceId, participantId, text)
+                }
+            }
+            .show()
+    }
+
     private fun shareZip(zip: File) {
         val uri = FileProvider.getUriForFile(
             requireContext(),
@@ -580,6 +667,11 @@ class RaceDetailFragment : Fragment() {
         if (parsed != null && parsed.contents != null) return parsed.contents
         data.getStringExtra("SCAN_RESULT")?.let { return it }
         return null
+    }
+
+    private fun openParticipantPhotos(participantId: Long) {
+        ParticipantPhotosBottomSheet.newInstance(raceId, participantId)
+            .show(childFragmentManager, "participantPhotos")
     }
 
     private fun confirmRemoveParticipant(participantId: Long) {

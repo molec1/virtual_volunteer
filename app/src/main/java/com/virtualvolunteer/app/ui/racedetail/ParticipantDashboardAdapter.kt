@@ -21,12 +21,14 @@ import java.io.File
 class ParticipantDashboardAdapter(
     private val onScanCode: (participantId: Long) -> Unit,
     private val onRemove: (participantId: Long) -> Unit,
+    private val onEditDisplayName: (participantId: Long, currentName: String?) -> Unit,
+    private val onOpenPhotos: (participantId: Long) -> Unit,
 ) : ListAdapter<ParticipantDashboardRow, ParticipantDashboardAdapter.VH>(DIFF) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val inflater = LayoutInflater.from(parent.context)
         val binding = ParticipantDashboardRowBinding.inflate(inflater, parent, false)
-        return VH(binding, onScanCode, onRemove)
+        return VH(binding, onScanCode, onRemove, onEditDisplayName, onOpenPhotos)
     }
 
     override fun onBindViewHolder(holder: VH, position: Int) {
@@ -37,6 +39,8 @@ class ParticipantDashboardAdapter(
         private val binding: ParticipantDashboardRowBinding,
         private val onScanCode: (Long) -> Unit,
         private val onRemove: (Long) -> Unit,
+        private val onEditDisplayName: (Long, String?) -> Unit,
+        private val onOpenPhotos: (Long) -> Unit,
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(row: ParticipantDashboardRow) {
@@ -49,7 +53,20 @@ class ParticipantDashboardAdapter(
                 binding.participantThumb.setBackgroundResource(R.drawable.bg_placeholder_photo)
             }
 
-            val descriptorLine = if (row.embeddingFailed) {
+            val rank = row.finishRank
+            if (rank != null) {
+                binding.participantFinishRank.visibility = View.VISIBLE
+                binding.participantFinishRank.text =
+                    binding.root.context.getString(R.string.participant_rank_fmt, rank)
+            } else {
+                binding.participantFinishRank.visibility = View.GONE
+            }
+
+            val name = row.displayName?.trim()?.takeIf { it.isNotEmpty() }
+            binding.participantHeadline.text = name
+                ?: binding.root.context.getString(R.string.participant_tap_to_name)
+
+            val digest = if (row.embeddingFailed) {
                 binding.root.context.getString(R.string.participant_embedding_failed)
             } else {
                 val embShort = if (row.embedding.length > 48) {
@@ -59,7 +76,7 @@ class ParticipantDashboardAdapter(
                 }
                 embShort
             }
-            binding.participantHashShort.text = descriptorLine
+            binding.participantEmbeddingDigest.text = digest
 
             val info = row.registryInfo
             if (!info.isNullOrBlank()) {
@@ -82,12 +99,6 @@ class ParticipantDashboardAdapter(
             } else {
                 binding.participantMovingTime.visibility = View.GONE
             }
-
-            binding.participantDetectedTime.text =
-                binding.root.context.getString(
-                    R.string.participant_detected_fmt,
-                    RaceUiFormatter.formatDateTime(row.createdAtEpochMillis),
-                )
 
             if (finishMs != null) {
                 binding.participantFinishTime.text = binding.root.context.getString(
@@ -115,6 +126,12 @@ class ParticipantDashboardAdapter(
                 binding.participantScannedPayload.visibility = View.GONE
             }
 
+            binding.participantThumb.isClickable = true
+            binding.participantThumb.setOnClickListener { onOpenPhotos(row.participantId) }
+
+            binding.participantHeadline.setOnClickListener {
+                onEditDisplayName(row.participantId, row.displayName)
+            }
             binding.btnScanCode.setOnClickListener { onScanCode(row.participantId) }
             binding.btnRemoveParticipant.setOnClickListener { onRemove(row.participantId) }
         }

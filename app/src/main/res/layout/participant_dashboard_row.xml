@@ -28,11 +28,42 @@
             android:layout_weight="1"
             android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/participantHashShort"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/participantFinishRank"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingEnd="8dp"
+                    android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
+                    android:textStyle="bold"
+                    android:visibility="gone"
+                    tools:text="#1"
+                    tools:visibility="visible" />
+
+                <TextView
+                    android:id="@+id/participantHeadline"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
+                    tools:text="Name or tap to add" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/participantEmbeddingDigest"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="2dp"
+                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+                android:textColor="?android:attr/textColorSecondary"
                 tools:text="Embedding…" />
 
             <TextView
@@ -55,14 +86,6 @@
                 android:visibility="gone"
                 tools:text="Moving: 12:34"
                 tools:visibility="visible" />
-
-            <TextView
-                android:id="@+id/participantDetectedTime"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingTop="2dp"
-                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                tools:text="Detected: …" />
 
             <TextView
                 android:id="@+id/participantFinishTime"

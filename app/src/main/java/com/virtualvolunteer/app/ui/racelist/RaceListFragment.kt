@@ -66,6 +66,10 @@ class RaceListFragment : Fragment() {
             }
         }
 
+        binding.fabIdentityRegistry.setOnClickListener {
+            findNavController().navigate(R.id.action_race_list_to_identity_registry)
+        }
+
         binding.fabNewRace.setOnClickListener {
             val fine = ContextCompat.checkSelfPermission(
                 requireContext(),

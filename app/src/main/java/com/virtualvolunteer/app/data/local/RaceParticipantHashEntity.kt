@@ -34,5 +34,11 @@ data class RaceParticipantHashEntity(
     val registryInfo: String? = null,
     /** Row in [IdentityRegistryEntity] used for this face (embedding source / enrichment). */
     val identityRegistryId: Long? = null,
+    /** Optional display name for protocol / UI. */
+    val displayName: String? = null,
+    /** Earliest finish detection instant for this participant (defines the first finish series window). */
+    val firstFinishSeenAtEpochMillis: Long? = null,
+    /** Official protocol finish time: max detection in [firstFinishSeenAt, firstFinishSeenAt + 30s]. */
+    val protocolFinishTimeEpochMillis: Long? = null,
     val createdAtEpochMillis: Long,
 )
