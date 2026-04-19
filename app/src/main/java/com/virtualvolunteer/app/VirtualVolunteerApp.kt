@@ -21,6 +21,7 @@ class VirtualVolunteerApp : Application() {
             raceDao = database.raceDao(),
             participantHashDao = database.participantHashDao(),
             finishRecordDao = database.finishRecordDao(),
+            identityRegistryDao = database.identityRegistryDao(),
         )
     }
 

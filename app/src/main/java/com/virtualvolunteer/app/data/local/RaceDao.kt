@@ -23,4 +23,7 @@ interface RaceDao {
 
     @Query("SELECT * FROM races WHERE id = :raceId LIMIT 1")
     fun observeRace(raceId: String): Flow<RaceEntity?>
+
+    @Query("DELETE FROM races WHERE id = :raceId")
+    suspend fun deleteRaceById(raceId: String): Int
 }

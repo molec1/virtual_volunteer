@@ -34,4 +34,18 @@
     <string name="participant_embedding_failed">Embedding: hash failed (debug)</string>
     <string name="participant_thumb_cd">Participant face thumbnail</string>
     <string name="pipeline_debug_title">Pipeline debug</string>
+    <string name="participant_moving_time_fmt">Moving time: %1$s</string>
+    <string name="participant_detected_fmt">Detected: %1$s</string>
+    <string name="participant_finish_fmt">Finish: %1$s</string>
+    <string name="participant_scan_fmt">Scan: %1$s</string>
+    <string name="delete_race_title">Delete race?</string>
+    <string name="delete_race_message">This removes the race from the list and deletes all files and database records for this race. This cannot be undone.</string>
+    <string name="delete_participant_title">Remove from protocol?</string>
+    <string name="delete_participant_message">This removes the contestant from this race and deletes their finish time for this race. The global identity record (if any) is kept.</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="btn_delete_race_cd">Delete race</string>
+    <string name="btn_scan_code_cd">Scan QR or barcode</string>
+    <string name="btn_remove_participant_cd">Remove participant</string>
+    <string name="toast_race_deleted">Race deleted</string>
 </resources>

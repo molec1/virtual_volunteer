@@ -28,5 +28,11 @@ data class RaceParticipantHashEntity(
     val sourcePhoto: String,
     /** Absolute path to cropped face JPEG under race faces/ folder; null if not saved. */
     val faceThumbnailPath: String? = null,
+    /** Raw QR/barcode scan linked to this contestant (also synced to [identityRegistryId] when set). */
+    val scannedPayload: String? = null,
+    /** Info copied from global identity registry when embedding matched (read-only snapshot). */
+    val registryInfo: String? = null,
+    /** Row in [IdentityRegistryEntity] used for this face (embedding source / enrichment). */
+    val identityRegistryId: Long? = null,
     val createdAtEpochMillis: Long,
 )

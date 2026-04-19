@@ -8,30 +8,51 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:orientation="horizontal"
+        android:padding="12dp">
 
-        <TextView
-            android:id="@+id/raceDate"
-            android:layout_width="match_parent"
+        <LinearLayout
+            android:id="@+id/raceRowMain"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-            tools:text="2026-04-18" />
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/raceTime"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="4dp"
-            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-            tools:text="14:32:10" />
+            <TextView
+                android:id="@+id/raceDate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+                tools:text="2026-04-18" />
 
-        <TextView
-            android:id="@+id/raceStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="4dp"
-            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-            tools:text="CREATED" />
+            <TextView
+                android:id="@+id/raceTime"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="4dp"
+                android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                tools:text="14:32:10" />
+
+            <TextView
+                android:id="@+id/raceStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="4dp"
+                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+                tools:text="CREATED" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/btnDeleteRace"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center_vertical"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/btn_delete_race_cd"
+            android:padding="10dp"
+            android:src="@android:drawable/ic_menu_delete" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

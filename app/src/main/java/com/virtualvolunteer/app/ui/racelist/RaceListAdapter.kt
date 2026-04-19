@@ -11,12 +11,13 @@ import com.virtualvolunteer.app.ui.util.RaceUiFormatter
 
 class RaceListAdapter(
     private val onOpen: (RaceEntity) -> Unit,
+    private val onDelete: (RaceEntity) -> Unit,
 ) : ListAdapter<RaceEntity, RaceListAdapter.VH>(DIFF) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val inflater = LayoutInflater.from(parent.context)
         val binding = RaceRowBinding.inflate(inflater, parent, false)
-        return VH(binding, onOpen)
+        return VH(binding, onOpen, onDelete)
     }
 
     override fun onBindViewHolder(holder: VH, position: Int) {
@@ -26,13 +27,15 @@ class RaceListAdapter(
     class VH(
         private val binding: RaceRowBinding,
         private val onOpen: (RaceEntity) -> Unit,
+        private val onDelete: (RaceEntity) -> Unit,
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(item: RaceEntity) {
             binding.raceDate.text = RaceUiFormatter.formatDate(item.createdAtEpochMillis)
             binding.raceTime.text = RaceUiFormatter.formatTime(item.createdAtEpochMillis)
             binding.raceStatus.text = RaceUiFormatter.formatStatus(item.status)
-            binding.root.setOnClickListener { onOpen(item) }
+            binding.raceRowMain.setOnClickListener { onOpen(item) }
+            binding.btnDeleteRace.setOnClickListener { onDelete(item) }
         }
     }
 

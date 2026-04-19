@@ -11,6 +11,7 @@ import com.virtualvolunteer.app.data.repository.RaceRepository
 import com.virtualvolunteer.app.domain.debug.FinishFaceDebugRow
 import com.virtualvolunteer.app.domain.debug.FinishPhotoDebugReport
 import com.virtualvolunteer.app.domain.face.EmbeddingMath
+import com.virtualvolunteer.app.domain.identity.GlobalIdentityResolution
 import com.virtualvolunteer.app.domain.face.FaceCropBounds
 import com.virtualvolunteer.app.domain.face.FaceDebugOverlay
 import com.virtualvolunteer.app.domain.face.FaceEmbedder
@@ -142,6 +143,26 @@ class RacePhotoProcessor(
                     pipelineLog("face#$faceNum descriptorCreated=true dim=${vec.size}")
                 }
 
+                if (!embeddingFailed && vec != null) {
+                    val existingPool = races.listParticipantHashes(raceId).filter { !it.embeddingFailed }
+                    val duplicateOf = matcher.match(vec, existingPool)
+                    if (duplicateOf != null) {
+                        if (thumbFile.exists()) thumbFile.delete()
+                        pipelineLog(
+                            "face#$faceNum skip_duplicate_of_participant id=${duplicateOf.id} " +
+                                "(same_face_as_existing_pool)",
+                        )
+                        Log.i(TAG, "ingestStartPhoto face#$faceNum skipped duplicate id=${duplicateOf.id}")
+                        return@forEachIndexed
+                    }
+                }
+
+                val globalId: GlobalIdentityResolution? = if (!embeddingFailed && vec != null) {
+                    races.resolveGlobalIdentity(vec)
+                } else {
+                    null
+                }
+
                 val rowId = races.insertParticipantHash(
                     RaceParticipantHashEntity(
                         raceId = raceId,
@@ -149,9 +170,18 @@ class RacePhotoProcessor(
                         embeddingFailed = embeddingFailed,
                         sourcePhoto = photoFile.absolutePath,
                         faceThumbnailPath = thumbFile.absolutePath,
+                        scannedPayload = null,
+                        registryInfo = globalId?.registryInfo,
+                        identityRegistryId = globalId?.registryId,
                         createdAtEpochMillis = createdAt,
                     ),
                 )
+                globalId?.let { g ->
+                    pipelineLog(
+                        "face#$faceNum identityRegistry id=${g.registryId} matchedExisting=${g.matchedExisting} " +
+                            "info=${g.registryInfo ?: "—"}",
+                    )
+                }
                 val total = races.countParticipantsForRace(raceId)
                 pipelineLog(
                     "face#$faceNum participantRowInserted=true id=$rowId embeddingFailed=$embeddingFailed " +

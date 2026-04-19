@@ -1,8 +1,10 @@
 package com.virtualvolunteer.app.ui.racedetail
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -38,10 +40,13 @@ import com.virtualvolunteer.app.domain.face.TfliteFaceEmbedder
 import com.virtualvolunteer.app.domain.matching.FaceMatchEngine
 import com.virtualvolunteer.app.domain.participants.RoomRaceParticipantPool
 import com.virtualvolunteer.app.export.RaceZipExporter
+import com.virtualvolunteer.app.ui.scan.BarcodeScanActivity
 import com.virtualvolunteer.app.ui.util.PreviewImageLoader
 import com.virtualvolunteer.app.ui.util.RaceUiFormatter
+import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -61,9 +66,27 @@ class RaceDetailFragment : Fragment() {
     private lateinit var faceEmbedder: TfliteFaceEmbedder
     private lateinit var photoProcessor: RacePhotoProcessor
 
-    private val participantAdapter = ParticipantDashboardAdapter()
+    private lateinit var participantAdapter: ParticipantDashboardAdapter
 
     private var latestRace: RaceEntity? = null
+
+    private var pendingScanParticipantId: Long? = null
+
+    private val barcodeScanLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val pid = pendingScanParticipantId
+        pendingScanParticipantId = null
+        if (result.resultCode != Activity.RESULT_OK || pid == null) return@registerForActivityResult
+        val text = extractScanText(result.data) ?: return@registerForActivityResult
+        lifecycleScope.launch(Dispatchers.IO) {
+            (requireActivity().application as VirtualVolunteerApp).raceRepository.updateParticipantScan(
+                raceId,
+                pid,
+                text,
+            )
+        }
+    }
 
     private val handler = Handler(Looper.getMainLooper())
     private val timerRunnable = object : Runnable {
@@ -291,7 +314,12 @@ class RaceDetailFragment : Fragment() {
         val app = requireActivity().application as VirtualVolunteerApp
         val repo = app.raceRepository
 
+        participantAdapter = ParticipantDashboardAdapter(
+            onScanCode = { id -> openBarcodeScan(id) },
+            onRemove = { id -> confirmRemoveParticipant(id) },
+        )
         binding.participantsRecycler.adapter = participantAdapter
+        binding.participantsRecycler.itemAnimator = null
 
         app.pipelineDebugLines.observe(
             viewLifecycleOwner,
@@ -312,14 +340,18 @@ class RaceDetailFragment : Fragment() {
                     }
                 }
                 launch {
-                    repo.observeParticipantDashboard(raceId).collect { rows ->
-                        participantAdapter.submitList(rows)
-                        val show = rows.isNotEmpty()
-                        binding.dashboardParticipantsTitle.visibility =
-                            if (show) View.VISIBLE else View.GONE
-                        binding.participantsRecycler.visibility =
-                            if (show) View.VISIBLE else View.GONE
-                    }
+                    combine(
+                        repo.observeParticipantDashboard(raceId),
+                        repo.observeFinishRecordCount(raceId),
+                    ) { rows, finishN -> rows to finishN }
+                        .collect { (rows, finishN) ->
+                            participantAdapter.submitList(rows)
+                            val showProtocol = rows.isNotEmpty() || finishN > 0
+                            binding.dashboardParticipantsTitle.visibility =
+                                if (showProtocol) View.VISIBLE else View.GONE
+                            binding.participantsRecycler.visibility =
+                                if (showProtocol) View.VISIBLE else View.GONE
+                        }
                 }
             }
         }
@@ -389,7 +421,7 @@ class RaceDetailFragment : Fragment() {
         }
         binding.lastPhotoEmptyHint.visibility = View.GONE
         lifecycleScope.launch(Dispatchers.Default) {
-            val bmp = PreviewImageLoader.loadThumbnail(path)
+            val bmp = PreviewImageLoader.loadThumbnailOriented(path, maxSidePx = 1080)
             withContext(Dispatchers.Main) {
                 binding.lastPhotoPreview.background = null
                 binding.lastPhotoPreview.setImageBitmap(bmp)
@@ -529,6 +561,43 @@ class RaceDetailFragment : Fragment() {
             pendingCameraAction = action
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
+    }
+
+    private fun openBarcodeScan(participantId: Long) {
+        pendingScanParticipantId = participantId
+        runWithCameraPermission {
+            barcodeScanLauncher.launch(Intent(requireContext(), BarcodeScanActivity::class.java))
+        }
+    }
+
+    private fun extractScanText(data: Intent?): String? {
+        if (data == null) return null
+        val parsed = IntentIntegrator.parseActivityResult(
+            IntentIntegrator.REQUEST_CODE,
+            Activity.RESULT_OK,
+            data,
+        )
+        if (parsed != null && parsed.contents != null) return parsed.contents
+        data.getStringExtra("SCAN_RESULT")?.let { return it }
+        return null
+    }
+
+    private fun confirmRemoveParticipant(participantId: Long) {
+        val dialog = MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.delete_participant_title)
+            .setMessage(R.string.delete_participant_message)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.action_delete) { _, _ ->
+                lifecycleScope.launch(Dispatchers.IO) {
+                    (requireActivity().application as VirtualVolunteerApp).raceRepository
+                        .removeParticipantFromRace(raceId, participantId)
+                }
+            }
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)?.setTextColor(Color.RED)
+        }
+        dialog.show()
     }
 
     private fun formatFinishDebugReport(report: FinishPhotoDebugReport): String {

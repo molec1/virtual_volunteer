@@ -10,6 +10,10 @@ data class ParticipantDashboardRow(
     val embeddingFailed: Boolean,
     val sourcePhoto: String,
     val faceThumbnailPath: String?,
+    val scannedPayload: String?,
+    val registryInfo: String?,
+    /** Race gun time for moving-time calculation (millis). */
+    val raceStartedAtEpochMillis: Long?,
     val createdAtEpochMillis: Long,
     val finishTimeEpochMillis: Long?,
 )

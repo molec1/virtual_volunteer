@@ -171,18 +171,17 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:maxHeight="200dp"
                     android:minHeight="120dp">
 
                     <ImageView
                         android:id="@+id/lastPhotoPreview"
                         android:layout_width="match_parent"
-                        android:layout_height="200dp"
+                        android:layout_height="wrap_content"
                         android:adjustViewBounds="true"
                         android:background="@drawable/bg_placeholder_photo"
                         android:contentDescription="@string/dashboard_preview_title"
-                        android:maxHeight="200dp"
-                        android:scaleType="centerCrop"
+                        android:maxHeight="240dp"
+                        android:scaleType="fitCenter"
                         tools:ignore="ImageContrastCheck" />
 
                     <TextView

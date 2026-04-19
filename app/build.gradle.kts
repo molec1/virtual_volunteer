@@ -76,6 +76,8 @@ dependencies {
 
     implementation("com.google.mlkit:face-detection:16.1.7")
 
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
     implementation("org.tensorflow:tensorflow-lite:2.14.0")
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 }

@@ -1,7 +1,9 @@
 package com.virtualvolunteer.app.ui.racedetail
 
 import android.graphics.Color
+import android.graphics.Typeface
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -16,13 +18,15 @@ import java.io.File
 /**
  * Participant / protocol rows for the race dashboard (race-local pool + finish join).
  */
-class ParticipantDashboardAdapter :
-    ListAdapter<ParticipantDashboardRow, ParticipantDashboardAdapter.VH>(DIFF) {
+class ParticipantDashboardAdapter(
+    private val onScanCode: (participantId: Long) -> Unit,
+    private val onRemove: (participantId: Long) -> Unit,
+) : ListAdapter<ParticipantDashboardRow, ParticipantDashboardAdapter.VH>(DIFF) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val inflater = LayoutInflater.from(parent.context)
         val binding = ParticipantDashboardRowBinding.inflate(inflater, parent, false)
-        return VH(binding)
+        return VH(binding, onScanCode, onRemove)
     }
 
     override fun onBindViewHolder(holder: VH, position: Int) {
@@ -31,6 +35,8 @@ class ParticipantDashboardAdapter :
 
     class VH(
         private val binding: ParticipantDashboardRowBinding,
+        private val onScanCode: (Long) -> Unit,
+        private val onRemove: (Long) -> Unit,
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(row: ParticipantDashboardRow) {
@@ -55,13 +61,39 @@ class ParticipantDashboardAdapter :
             }
             binding.participantHashShort.text = descriptorLine
 
-            binding.participantDetectedTime.text =
-                "Detected: ${RaceUiFormatter.formatDateTime(row.createdAtEpochMillis)}"
+            val info = row.registryInfo
+            if (!info.isNullOrBlank()) {
+                binding.participantRegistryInfo.visibility = View.VISIBLE
+                binding.participantRegistryInfo.text = info
+            } else {
+                binding.participantRegistryInfo.visibility = View.GONE
+            }
 
+            val startMs = row.raceStartedAtEpochMillis
             val finishMs = row.finishTimeEpochMillis
+            if (startMs != null && finishMs != null) {
+                binding.participantMovingTime.visibility = View.VISIBLE
+                val delta = (finishMs - startMs).coerceAtLeast(0L)
+                binding.participantMovingTime.text = binding.root.context.getString(
+                    R.string.participant_moving_time_fmt,
+                    RaceUiFormatter.formatElapsed(delta),
+                )
+                binding.participantMovingTime.setTypeface(binding.participantMovingTime.typeface, Typeface.BOLD)
+            } else {
+                binding.participantMovingTime.visibility = View.GONE
+            }
+
+            binding.participantDetectedTime.text =
+                binding.root.context.getString(
+                    R.string.participant_detected_fmt,
+                    RaceUiFormatter.formatDateTime(row.createdAtEpochMillis),
+                )
+
             if (finishMs != null) {
-                binding.participantFinishTime.text =
-                    "Finish: ${RaceUiFormatter.formatDateTime(finishMs)}"
+                binding.participantFinishTime.text = binding.root.context.getString(
+                    R.string.participant_finish_fmt,
+                    RaceUiFormatter.formatDateTime(finishMs),
+                )
                 binding.participantFinishTime.setTextColor(Color.BLACK)
                 binding.root.alpha = 1f
             } else {
@@ -71,6 +103,20 @@ class ParticipantDashboardAdapter :
                 binding.participantFinishTime.setTextColor(0xFF666666.toInt())
                 binding.root.alpha = 0.92f
             }
+
+            val scan = row.scannedPayload
+            if (!scan.isNullOrBlank()) {
+                binding.participantScannedPayload.visibility = View.VISIBLE
+                binding.participantScannedPayload.text = binding.root.context.getString(
+                    R.string.participant_scan_fmt,
+                    scan,
+                )
+            } else {
+                binding.participantScannedPayload.visibility = View.GONE
+            }
+
+            binding.btnScanCode.setOnClickListener { onScanCode(row.participantId) }
+            binding.btnRemoveParticipant.setOnClickListener { onRemove(row.participantId) }
         }
     }
 

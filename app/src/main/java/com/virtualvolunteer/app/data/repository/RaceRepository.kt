@@ -4,6 +4,8 @@ import android.content.Context
 import com.virtualvolunteer.app.data.files.RacePaths
 import com.virtualvolunteer.app.data.local.FinishRecordDao
 import com.virtualvolunteer.app.data.local.FinishRecordEntity
+import com.virtualvolunteer.app.data.local.IdentityRegistryDao
+import com.virtualvolunteer.app.data.local.IdentityRegistryEntity
 import com.virtualvolunteer.app.data.local.ParticipantDashboardRow
 import com.virtualvolunteer.app.data.local.ParticipantHashDao
 import com.virtualvolunteer.app.data.local.RaceDao
@@ -13,6 +15,9 @@ import com.virtualvolunteer.app.data.model.RaceStatus
 import com.virtualvolunteer.app.data.xml.ProtocolXmlIo
 import com.virtualvolunteer.app.data.xml.RaceXmlIo
 import com.virtualvolunteer.app.data.xml.RaceXmlSnapshot
+import com.virtualvolunteer.app.domain.face.EmbeddingMath
+import com.virtualvolunteer.app.domain.identity.GlobalIdentityResolution
+import com.virtualvolunteer.app.domain.matching.FaceMatchEngine
 import com.virtualvolunteer.app.domain.time.PhotoTimestampResolver
 import com.virtualvolunteer.app.location.LocationCapture
 import kotlinx.coroutines.flow.Flow
@@ -26,6 +31,7 @@ class RaceRepository(
     private val raceDao: RaceDao,
     private val participantHashDao: ParticipantHashDao,
     private val finishRecordDao: FinishRecordDao,
+    private val identityRegistryDao: IdentityRegistryDao,
 ) {
 
     fun observeAllRaces(): Flow<List<RaceEntity>> = raceDao.observeAllRaces()
@@ -34,6 +40,9 @@ class RaceRepository(
 
     fun observeParticipantDashboard(raceId: String): Flow<List<ParticipantDashboardRow>> =
         participantHashDao.observeParticipantDashboard(raceId)
+
+    fun observeFinishRecordCount(raceId: String): Flow<Int> =
+        finishRecordDao.observeCountForRace(raceId)
 
     suspend fun getRace(raceId: String): RaceEntity? = raceDao.getRace(raceId)
 
@@ -119,6 +128,74 @@ class RaceRepository(
 
     suspend fun insertParticipantHash(row: RaceParticipantHashEntity): Long =
         participantHashDao.insert(row)
+
+    /**
+     * Matches [embedding] against the global identity registry (cosine ≥ same gate as finish matching).
+     * On match: returns existing registry row info. Otherwise inserts a new registry embedding row.
+     */
+    suspend fun resolveGlobalIdentity(embedding: FloatArray): GlobalIdentityResolution {
+        val rows = identityRegistryDao.listAll()
+        var best: IdentityRegistryEntity? = null
+        var bestSim = -1f
+        for (row in rows) {
+            val stored = EmbeddingMath.parseCommaSeparated(row.embedding)
+            if (stored.isEmpty() || stored.size != embedding.size) continue
+            val sim = EmbeddingMath.cosineSimilarity(embedding, stored)
+            if (sim > bestSim) {
+                bestSim = sim
+                best = row
+            }
+        }
+        val threshold = FaceMatchEngine.DEFAULT_MIN_COSINE
+        if (best != null && bestSim >= threshold) {
+            val info = listOfNotNull(best.notes, best.scannedPayload)
+                .filter { !it.isNullOrBlank() }
+                .joinToString(" · ")
+                .takeIf { it.isNotBlank() }
+            return GlobalIdentityResolution(
+                registryId = best.id,
+                registryInfo = info,
+                matchedExisting = true,
+            )
+        }
+        val embeddingStr = EmbeddingMath.formatCommaSeparated(embedding)
+        val newId = identityRegistryDao.insert(
+            IdentityRegistryEntity(
+                embedding = embeddingStr,
+                scannedPayload = null,
+                notes = null,
+                createdAtEpochMillis = System.currentTimeMillis(),
+            ),
+        )
+        return GlobalIdentityResolution(
+            registryId = newId,
+            registryInfo = null,
+            matchedExisting = false,
+        )
+    }
+
+    suspend fun updateParticipantScan(raceId: String, participantId: Long, scannedPayload: String) {
+        val row = participantHashDao.getById(participantId) ?: return
+        require(row.raceId == raceId)
+        participantHashDao.update(row.copy(scannedPayload = scannedPayload))
+        row.identityRegistryId?.let { rid ->
+            identityRegistryDao.updateScannedPayload(rid, scannedPayload)
+        }
+    }
+
+    suspend fun removeParticipantFromRace(raceId: String, participantId: Long) {
+        finishRecordDao.deleteForParticipant(raceId, participantId)
+        participantHashDao.deleteById(participantId, raceId)
+        refreshProtocolXml(raceId)
+    }
+
+    suspend fun deleteRace(raceId: String) {
+        raceDao.deleteRaceById(raceId)
+        val folder = RacePaths.raceFolder(appContext, raceId)
+        if (folder.exists()) {
+            folder.deleteRecursively()
+        }
+    }
 
     suspend fun listParticipantHashes(raceId: String): List<RaceParticipantHashEntity> =
         participantHashDao.listForRace(raceId)
