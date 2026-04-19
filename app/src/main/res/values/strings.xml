@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Virtual Volunteer</string>
+    <string name="start_new_race">Start new race</string>
+    <string name="empty_races">No races yet. Tap \"Start new race\".</string>
+    <string name="race_detail_title">Race</string>
+    <string name="race_status_label">Status</string>
+    <string name="race_created_label">Created</string>
+    <string name="race_location_label">Location</string>
+    <string name="btn_start_race">Start race</string>
+    <string name="btn_pre_start_photo">Take pre-start photo(s)</string>
+    <string name="btn_take_finish_photo">Take finish photo</string>
+    <string name="btn_finish_race">Finish race</string>
+    <string name="btn_export_results">Export results</string>
+    <string name="timer_label">Elapsed</string>
+    <string name="permission_camera_required">Camera permission is required for photos.</string>
+    <string name="permission_location_denied">Location unavailable; race saved without coordinates.</string>
+    <string name="export_saved">Export saved</string>
+    <string name="export_failed">Export failed</string>
+    <string name="race_created_nav_failed">Race created but opening details failed.</string>
+    <string name="offline_test_header">Offline testing</string>
+    <string name="btn_import_start_photos">Import start photos</string>
+    <string name="btn_import_finish_photos">Import finish photos</string>
+    <string name="btn_build_test_protocol">Build test protocol</string>
+    <string name="btn_test_single_finish_photo">Test single finish photo</string>
+    <string name="finish_debug_dialog_title">Finish photo debug</string>
+    <string name="test_protocol_built">Test protocol built. Debug log saved.</string>
+    <string name="test_protocol_failed">Could not build test protocol</string>
+    <string name="import_failed">Import failed</string>
+    <string name="dashboard_preview_title">Last processed photo</string>
+    <string name="dashboard_participants_title">Participants</string>
+    <string name="dashboard_no_photo_hint">No photo processed yet</string>
+    <string name="participant_no_finish_yet">Finish: —</string>
+    <string name="participant_embedding_failed">Embedding: hash failed (debug)</string>
+    <string name="participant_thumb_cd">Participant face thumbnail</string>
+    <string name="pipeline_debug_title">Pipeline debug</string>
+</resources>

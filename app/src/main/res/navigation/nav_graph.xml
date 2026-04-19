@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/race_list">
+
+    <fragment
+        android:id="@+id/race_list"
+        android:name="com.virtualvolunteer.app.ui.racelist.RaceListFragment"
+        android:label="@string/app_name"
+        tools:layout="@layout/fragment_race_list">
+
+        <action
+            android:id="@+id/action_race_list_to_race_detail"
+            app:destination="@id/race_detail" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/race_detail"
+        android:name="com.virtualvolunteer.app.ui.racedetail.RaceDetailFragment"
+        android:label="@string/race_detail_title"
+        tools:layout="@layout/fragment_race_detail">
+
+        <argument
+            android:name="raceId"
+            app:argType="string" />
+    </fragment>
+</navigation>
