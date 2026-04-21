@@ -9,6 +9,7 @@
     android:padding="@dimen/screen_horizontal_padding">
 
     <TextView
+        android:id="@+id/lookupSheetTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/participant_lookup_sheet_title"

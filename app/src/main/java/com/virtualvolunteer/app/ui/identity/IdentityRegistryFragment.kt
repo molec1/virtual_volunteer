@@ -21,7 +21,8 @@ import kotlinx.coroutines.withContext
 import android.widget.Toast
 
 /**
- * Lists all identities stored on this device (registry rows used when matching start photos).
+ * Lists identities on this device that have a **scanned code**; refreshes registry face thumbnails
+ * from linked race participants when the stored path is missing or invalid.
  */
 class IdentityRegistryFragment : Fragment() {
 
@@ -63,6 +64,9 @@ class IdentityRegistryFragment : Fragment() {
                 repo.observeIdentityRegistry().collect { rows ->
                     adapter.submitList(rows)
                     binding.emptyView.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
+                    viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+                        repo.ensureIdentityRegistryThumbnailsFromLinkedParticipants(rows)
+                    }
                 }
             }
         }

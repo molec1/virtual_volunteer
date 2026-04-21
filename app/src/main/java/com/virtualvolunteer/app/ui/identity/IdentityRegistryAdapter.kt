@@ -38,7 +38,7 @@ class IdentityRegistryAdapter(
 
             val thumbPath = row.primaryThumbnailPhotoPath?.takeIf { File(it).exists() }
             if (!thumbPath.isNullOrBlank()) {
-                val bmp = PreviewImageLoader.loadThumbnail(thumbPath, maxSidePx = 256)
+                val bmp = PreviewImageLoader.loadThumbnailOrientedInset(thumbPath, maxSidePx = 256)
                 binding.registryThumb.setImageBitmap(bmp)
             } else {
                 binding.registryThumb.setImageBitmap(null)

@@ -11,7 +11,8 @@
         android:layout_height="match_parent"
         android:background="@drawable/bg_placeholder_photo"
         android:contentDescription="@string/participant_photo_tile_cd"
-        android:scaleType="centerCrop"
+        android:padding="@dimen/face_thumb_inner_padding"
+        android:scaleType="centerInside"
         tools:ignore="ImageContrastCheck" />
 
     <ImageView

@@ -42,6 +42,7 @@
     <string name="participant_thumb_cd">Participant face thumbnail</string>
     <string name="pipeline_debug_title">Pipeline debug</string>
     <string name="participant_moving_time_fmt">Moving time: %1$s</string>
+    <string name="participant_dashboard_time_dash">—</string>
     <string name="participant_rank_fmt">#%1$d</string>
     <string name="participant_tap_to_name">Tap to add name</string>
     <string name="participant_name_dialog_title">Participant name</string>
@@ -62,11 +63,12 @@
     <string name="participant_photo_tile_cd">Participant photo</string>
     <string name="finish_photo_badge_cd">Finish photo</string>
     <string name="identity_registry_title">Scanned on this device</string>
-    <string name="identity_registry_empty">No identities yet. They appear when start photos match the registry.</string>
+    <string name="identity_registry_empty">No identities with a scanned code yet. Scan a participant in a race, or match a start photo to the registry.</string>
     <string name="identity_registry_open_detail_failed">No race participant linked yet. Take a start photo first.</string>
     <string name="identity_registry_id_fmt">Registry id %1$d</string>
     <string name="identity_registry_no_scan">No code scanned yet</string>
     <string name="fab_identity_registry_cd">Open list of identities on this device</string>
+    <string name="race_list_start_thumb_cd">First pre-start photo</string>
     <string name="expand_collapse_cd">Expand or collapse section</string>
     <string name="finish_race_confirm_title">Finish race?</string>
     <string name="finish_race_confirm_message">Finishing a race will stop the timer and prevent further finish photo processing. You can still export results.</string>
@@ -77,6 +79,8 @@
     <string name="manual_finish_participant_hint">Enter participant ID</string>
     <string name="manual_finish_time_label">Finish time</string>
     <string name="manual_finish_select_photo">Select photo (use EXIF time)</string>
+    <string name="manual_finish_race_finish_photos_label">Finish photos in this race (tap one)</string>
+    <string name="manual_finish_photo_tile_cd">Finish photo</string>
     <string name="manual_finish_photo_time_fmt">Photo time: %1$s</string>
     <string name="manual_finish_pick_date">Pick date</string>
     <string name="manual_finish_pick_time">Pick time</string>
@@ -90,7 +94,14 @@
     <string name="manual_finish_success">Manual finish recorded. Official time: %1$s</string>
     <string name="manual_finish_no_photo_selected">No photo selected</string>
     <string name="btn_lookup_participant">Lookup participant (face)</string>
+    <string name="btn_face_lookup_cd">Face lookup — link scan and identity like barcode</string>
     <string name="participant_lookup_sheet_title">Lookup participant</string>
+    <string name="participant_lookup_reassign_title">Link scan by face match</string>
+    <string name="participant_lookup_no_embedding">No face embedding on this row yet.</string>
+    <string name="participant_lookup_merge_done">Rows merged. Finish times and faces moved to the chosen participant.</string>
+    <string name="participant_lookup_assign_like_scan_done">Scan and identity linked to this participant (same as scanning the code).</string>
+    <string name="participant_lookup_photo_mode_hint">Best match for scan code %1$s — use the row face icon on a participant to assign that code to them.</string>
+    <string name="participant_lookup_similarity_fmt">Cosine similarity: %.3f</string>
     <string name="participant_lookup_select_photo">Select photo</string>
     <string name="participant_lookup_empty">Select a photo to find participants</string>
     <string name="participant_lookup_no_faces">No faces detected in photo</string>

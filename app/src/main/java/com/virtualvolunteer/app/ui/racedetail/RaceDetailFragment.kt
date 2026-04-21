@@ -258,7 +258,8 @@ class RaceDetailFragment : Fragment() {
             onScanCode = { id -> openBarcodeScan(id) },
             onRemove = { id -> confirmRemoveParticipant(id) },
             onEditDisplayName = { id, current -> showParticipantNameEditor(id, current) },
-            onOpenPhotos = { id -> openRaceParticipantPhotos(raceId, id) }, // Changed to open RaceParticipantPhotosBottomSheet
+            onOpenPhotos = { id -> openRaceParticipantPhotos(raceId, id) },
+            onFaceLookup = { id -> openParticipantLookupForRow(id) },
         )
         binding.participantsRecycler.adapter = participantAdapter
         binding.participantsRecycler.itemAnimator = null
@@ -321,8 +322,6 @@ class RaceDetailFragment : Fragment() {
         }
 
         binding.btnAddManualFinish.setOnClickListener { openManualFinishBottomSheet() }
-
-        binding.btnLookupParticipant.setOnClickListener { openParticipantLookupBottomSheet() }
 
         // Collapsible section headers
         binding.offlineTestHeaderLayout.setOnClickListener { toggleOfflineTestExpansion() }
@@ -628,9 +627,9 @@ class RaceDetailFragment : Fragment() {
             .show(childFragmentManager, "participantPhotos")
     }
 
-    private fun openParticipantLookupBottomSheet() {
-        ParticipantLookupBottomSheet.newInstance(raceId)
-            .show(childFragmentManager, "participantLookup")
+    private fun openParticipantLookupForRow(participantId: Long) {
+        ParticipantLookupBottomSheet.newInstance(raceId, donorParticipantId = participantId)
+            .show(childFragmentManager, "participantLookupRow")
     }
 
     private fun openManualFinishBottomSheet() {

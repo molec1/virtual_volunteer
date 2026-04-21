@@ -68,7 +68,7 @@ class ParticipantDetailFragment : Fragment() {
                     ).firstOrNull { !it.isNullOrBlank() }
                     if (!thumbPath.isNullOrBlank()) {
                         lifecycleScope.launch(Dispatchers.Default) {
-                            val bmp = PreviewImageLoader.loadThumbnailOriented(thumbPath, maxSidePx = 240)
+                            val bmp = PreviewImageLoader.loadThumbnailOrientedInset(thumbPath, maxSidePx = 240)
                             withContext(Dispatchers.Main) {
                                 binding.participantDetailThumbnail.setImageBitmap(bmp)
                             }
@@ -151,7 +151,7 @@ private class ParticipantRaceAdapter(
 
             if (!summary.raceThumbnailPhotoPath.isNullOrBlank()) {
                 lifecycleScope.launch(Dispatchers.Default) {
-                    val bmp = PreviewImageLoader.loadThumbnailOriented(summary.raceThumbnailPhotoPath, maxSidePx = 120)
+                    val bmp = PreviewImageLoader.loadThumbnailOrientedInset(summary.raceThumbnailPhotoPath, maxSidePx = 120)
                     withContext(Dispatchers.Main) {
                         binding.raceThumbnail.setImageBitmap(bmp)
                     }

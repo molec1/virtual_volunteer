@@ -41,7 +41,7 @@ class RaceParticipantPhotosBottomSheet : BottomSheetDialogFragment() {
 
         val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
 
-        photoAdapter = ParticipantRacePhotoAdapter()
+        photoAdapter = ParticipantRacePhotoAdapter(viewLifecycleOwner.lifecycleScope)
         binding.photosRecycler.adapter = photoAdapter
         binding.photosRecycler.layoutManager = GridLayoutManager(requireContext(), 3)
 

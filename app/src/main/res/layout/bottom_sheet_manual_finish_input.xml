@@ -43,13 +43,22 @@
         android:text="@string/manual_finish_time_label"
         android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnSelectFinishPhoto"
-        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+    <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
-        android:text="@string/manual_finish_select_photo" />
+        android:text="@string/manual_finish_race_finish_photos_label"
+        android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/finishPhotosRecycler"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:clipToPadding="false"
+        android:paddingBottom="4dp"
+        tools:itemCount="4"
+        tools:listitem="@layout/item_manual_finish_photo" />
 
     <LinearLayout
         android:id="@+id/groupPhotoTime"

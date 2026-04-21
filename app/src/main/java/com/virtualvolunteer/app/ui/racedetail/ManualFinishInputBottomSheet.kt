@@ -1,34 +1,29 @@
 package com.virtualvolunteer.app.ui.racedetail
 
-import android.app.Activity
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
-import android.content.Intent
-import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import com.google.mlkit.vision.face.Face
 import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.VirtualVolunteerApp
-import com.virtualvolunteer.app.data.files.RacePaths
-import com.virtualvolunteer.app.data.files.UriFileCopy
-import com.virtualvolunteer.app.data.local.EmbeddingSourceType
 import com.virtualvolunteer.app.databinding.BottomSheetManualFinishInputBinding
-import com.virtualvolunteer.app.domain.RacePhotoProcessor
-import com.virtualvolunteer.app.domain.face.MlKitFaceDetector
-import com.virtualvolunteer.app.domain.face.TfliteFaceEmbedder
-import com.virtualvolunteer.app.domain.matching.FaceMatchEngine
-import com.virtualvolunteer.app.domain.participants.RoomRaceParticipantPool
+import com.virtualvolunteer.app.databinding.ItemManualFinishPhotoBinding
 import com.virtualvolunteer.app.domain.time.PhotoTimestampResolver
+import com.virtualvolunteer.app.ui.util.PreviewImageLoader
 import com.virtualvolunteer.app.ui.util.RaceUiFormatter
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -36,7 +31,7 @@ import java.util.Calendar
 import java.util.TimeZone
 
 /**
- * Bottom sheet for manually adding a finish time for a participant.
+ * Bottom sheet for manually adding a finish time: pick from this race's [finish_photos] folder or enter time.
  */
 class ManualFinishInputBottomSheet : BottomSheetDialogFragment() {
 
@@ -46,77 +41,43 @@ class ManualFinishInputBottomSheet : BottomSheetDialogFragment() {
     private val raceId: String
         get() = requireArguments().getString(ARG_RACE_ID) ?: error("raceId missing")
 
-    private lateinit var photoProcessor: RacePhotoProcessor
-
     private var selectedPhotoPath: String? = null
     private var selectedPhotoTime: Long? = null
-    private var detectedEmbedding: FloatArray? = null
 
     private var manualCalendar: Calendar = Calendar.getInstance(TimeZone.getDefault())
 
-    private val pickSingleFinishPhoto = registerForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        if (uri == null) return@registerForActivityResult
-        lifecycleScope.launch(Dispatchers.IO) {
-            val ctx = requireContext().applicationContext
-            val tmp = File(ctx.cacheDir, "manual_finish_photo_${System.currentTimeMillis()}.img")
-            try {
-                UriFileCopy.copyToFile(ctx, uri, tmp)
-                val ts = PhotoTimestampResolver.resolveEpochMillis(tmp)
-                val bmp = photoProcessor.loadVisionBitmap(tmp)
-                var embedding: FloatArray? = null
-                if (bmp != null) {
-                    val detected = photoProcessor.faces.detectFaces(bmp)
-                    if (detected.isNotEmpty()) {
-                        val face = detected.first() // Assume first face for manual photo
-                        val crop = photoProcessor.cropFace(bmp, face)
-                        if (crop != null) {
-                            val embedResult = runCatching { photoProcessor.embedder.embed(crop) }
-                            embedResult.onSuccess { embedding = it }
-                            crop.recycle()
-                        }
-                    }
-                    bmp.recycle()
-                }
-                withContext(Dispatchers.Main) {
-                    selectedPhotoPath = tmp.absolutePath
-                    selectedPhotoTime = ts
-                    detectedEmbedding = embedding
-                    updateUi()
-                }
-            } catch (t: Throwable) {
-                Log.w(TAG, "manual finish photo pick failed", t)
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(requireContext(), R.string.import_failed, Toast.LENGTH_SHORT).show()
-                }
-            } // finally { tmp.delete() } - don't delete yet, it's the source of the embedding
-        }
-    }
+    private lateinit var finishPhotoAdapter: FinishPhotoPickAdapter
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = BottomSheetManualFinishInputBinding.inflate(inflater, container, false)
         return binding.root
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
-        photoProcessor = RacePhotoProcessor(
-            races = repo,
-            faces = MlKitFaceDetector(),
-            embedder = TfliteFaceEmbedder(requireActivity().applicationContext),
-            matcher = FaceMatchEngine(),
-            pool = RoomRaceParticipantPool(repo),
-            appContext = requireActivity().applicationContext,
-        )
-    }
-
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        binding.btnSelectFinishPhoto.setOnClickListener { pickSingleFinishPhoto.launch(arrayOf("image/*")) }
+        finishPhotoAdapter = FinishPhotoPickAdapter(viewLifecycleOwner.lifecycleScope) { path ->
+            lifecycleScope.launch(Dispatchers.IO) {
+                val ts = PhotoTimestampResolver.resolveEpochMillis(File(path))
+                withContext(Dispatchers.Main) {
+                    selectedPhotoPath = path
+                    selectedPhotoTime = ts
+                    updateUi()
+                }
+            }
+        }
+        binding.finishPhotosRecycler.layoutManager =
+            LinearLayoutManager(requireContext(), RecyclerView.HORIZONTAL, false)
+        binding.finishPhotosRecycler.adapter = finishPhotoAdapter
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
+            val paths = repo.listFinishPhotoPathsForRace(raceId)
+            withContext(Dispatchers.Main) {
+                finishPhotoAdapter.submitList(paths)
+            }
+        }
+
         binding.btnPickDate.setOnClickListener { showDatePicker() }
         binding.btnPickTime.setOnClickListener { showTimePicker() }
         binding.btnConfirmManualFinish.setOnClickListener { confirmManualFinish() }
@@ -127,7 +88,8 @@ class ManualFinishInputBottomSheet : BottomSheetDialogFragment() {
     private fun updateUi() {
         if (selectedPhotoPath != null) {
             binding.textSelectedPhoto.text = File(selectedPhotoPath!!).name
-            binding.textSelectedPhotoTime.text = selectedPhotoTime?.let { RaceUiFormatter.formatDateTimeWithSeconds(it) } ?: ""
+            binding.textSelectedPhotoTime.text =
+                selectedPhotoTime?.let { RaceUiFormatter.formatDateTimeWithSeconds(it) } ?: ""
             binding.groupManualTime.visibility = View.GONE
             binding.groupPhotoTime.visibility = View.VISIBLE
         } else {
@@ -180,10 +142,6 @@ class ManualFinishInputBottomSheet : BottomSheetDialogFragment() {
         }
 
         val finishTime = selectedPhotoTime ?: manualCalendar.timeInMillis
-        if (finishTime == null) {
-            Toast.makeText(requireContext(), R.string.manual_finish_error_no_time, Toast.LENGTH_SHORT).show()
-            return
-        }
 
         lifecycleScope.launch(Dispatchers.IO) {
             val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
@@ -193,13 +151,16 @@ class ManualFinishInputBottomSheet : BottomSheetDialogFragment() {
                     participantId = participantId,
                     finishTimeEpochMillis = finishTime,
                     sourcePhotoPath = selectedPhotoPath,
-                    sourceEmbedding = detectedEmbedding,
+                    sourceEmbedding = null,
                 )
                 withContext(Dispatchers.Main) {
                     Toast.makeText(
                         requireContext(),
-                        getString(R.string.manual_finish_success, outcome.officialProtocolFinishMillis?.let { RaceUiFormatter.formatTime(it) } ?: "?"),
-                        Toast.LENGTH_LONG
+                        getString(
+                            R.string.manual_finish_success,
+                            outcome.officialProtocolFinishMillis?.let { RaceUiFormatter.formatTime(it) } ?: "?",
+                        ),
+                        Toast.LENGTH_LONG,
                     ).show()
                     dismiss()
                 }
@@ -216,6 +177,11 @@ class ManualFinishInputBottomSheet : BottomSheetDialogFragment() {
         }
     }
 
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+
     companion object {
         private const val TAG = "ManualFinishInputBottomSheet"
         private const val ARG_RACE_ID = "raceId"
@@ -224,6 +190,59 @@ class ManualFinishInputBottomSheet : BottomSheetDialogFragment() {
             arguments = Bundle().apply {
                 putString(ARG_RACE_ID, raceId)
             }
+        }
+    }
+}
+
+private class FinishPhotoPickAdapter(
+    private val imageLoadScope: CoroutineScope,
+    private val onPick: (String) -> Unit,
+) : ListAdapter<String, FinishPhotoPickAdapter.VH>(DIFF) {
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        val binding = ItemManualFinishPhotoBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        return VH(binding, imageLoadScope, onPick)
+    }
+
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    class VH(
+        private val binding: ItemManualFinishPhotoBinding,
+        private val imageLoadScope: CoroutineScope,
+        private val onPick: (String) -> Unit,
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        private var loadJob: Job? = null
+        private var bindGeneration: Int = 0
+
+        fun bind(path: String) {
+            loadJob?.cancel()
+            val gen = ++bindGeneration
+            binding.root.setOnClickListener { onPick(path) }
+            binding.finishPhotoThumb.setImageBitmap(null)
+            binding.finishPhotoThumb.setBackgroundResource(R.drawable.bg_placeholder_photo)
+            loadJob = imageLoadScope.launch(Dispatchers.Default) {
+                val bmp = PreviewImageLoader.loadThumbnailOriented(path, maxSidePx = 256)
+                withContext(Dispatchers.Main) {
+                    if (gen != bindGeneration) return@withContext
+                    if (bmp != null) {
+                        binding.finishPhotoThumb.background = null
+                        binding.finishPhotoThumb.setImageBitmap(bmp)
+                    } else {
+                        binding.finishPhotoThumb.setImageBitmap(null)
+                        binding.finishPhotoThumb.setBackgroundResource(R.drawable.bg_placeholder_photo)
+                    }
+                }
+            }
+        }
+    }
+
+    companion object {
+        private val DIFF = object : DiffUtil.ItemCallback<String>() {
+            override fun areItemsTheSame(oldItem: String, newItem: String): Boolean = oldItem == newItem
+            override fun areContentsTheSame(oldItem: String, newItem: String): Boolean = oldItem == newItem
         }
     }
 }

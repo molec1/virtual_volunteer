@@ -14,6 +14,16 @@ interface IdentityRegistryDao {
     @Query("SELECT * FROM identity_registry ORDER BY createdAtEpochMillis DESC")
     fun observeAll(): Flow<List<IdentityRegistryEntity>>
 
+    /** Identities with a non-empty scanned code (standalone registry list). */
+    @Query(
+        """
+        SELECT * FROM identity_registry
+        WHERE scannedPayload IS NOT NULL AND LENGTH(TRIM(scannedPayload)) > 0
+        ORDER BY createdAtEpochMillis DESC
+        """,
+    )
+    fun observeWithScannedPayload(): Flow<List<IdentityRegistryEntity>>
+
     @Query("SELECT * FROM identity_registry")
     suspend fun listAll(): List<IdentityRegistryEntity>
 
@@ -33,4 +43,7 @@ interface IdentityRegistryDao {
         """,
     )
     suspend fun updatePrimaryThumbnailIfMissing(id: Long, path: String): Int
+
+    @Query("UPDATE identity_registry SET primaryThumbnailPhotoPath = :path WHERE id = :id")
+    suspend fun updatePrimaryThumbnailPath(id: Long, path: String)
 }

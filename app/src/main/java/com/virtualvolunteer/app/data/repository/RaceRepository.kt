@@ -39,6 +39,18 @@ data class ParticipantRacePhoto(
     val isFinishFrame: Boolean,
 )
 
+/**
+ * One trimmed scan code on this device, ranked by best cosine between the lookup query vector(s)
+ * and **any** historical embedding for that code (registry row + all linked race participants).
+ */
+data class ScannedIdentityLookupRank(
+    val scanCodeTrimmed: String,
+    val registryIds: Set<Long>,
+    val maxCosineSimilarity: Float,
+    val registryThumbnailPath: String?,
+    val notes: String?,
+)
+
 /** Outcome after persisting one finish-photo face match (detection row + protocol aggregation). */
 data class RecordFinishDetectionOutcome(
     val officialProtocolFinishMillis: Long?,
@@ -80,9 +92,115 @@ class RaceRepository(
     fun observeFinishRecordCount(raceId: String): Flow<Int> =
         finishDetectionDao.observeCountForRace(raceId)
 
-    /** Device-local identities (face registry rows), newest first. */
+    /** Device-local identities with a scanned code, newest first (standalone registry screen). */
     fun observeIdentityRegistry(): Flow<List<IdentityRegistryEntity>> =
-        identityRegistryDao.observeAll()
+        identityRegistryDao.observeWithScannedPayload()
+
+    /**
+     * When a registry row has no valid [IdentityRegistryEntity.primaryThumbnailPhotoPath] on disk,
+     * sets it from the oldest linked race participant’s first existing face or primary thumbnail path.
+     */
+    suspend fun ensureIdentityRegistryThumbnailsFromLinkedParticipants(rows: List<IdentityRegistryEntity>) {
+        for (row in rows) {
+            val cur = row.primaryThumbnailPhotoPath?.trim().orEmpty()
+            if (cur.isNotBlank() && File(cur).exists()) continue
+
+            val hashes = participantHashDao.listHashesForIdentityRegistry(row.id).asReversed()
+            val picked = hashes.firstNotNullOfOrNull { h ->
+                sequenceOf(h.faceThumbnailPath, h.primaryThumbnailPhotoPath)
+                    .firstOrNull { p ->
+                        val t = p?.trim().orEmpty()
+                        t.isNotBlank() && File(t).exists()
+                    }?.trim()
+            } ?: continue
+
+            identityRegistryDao.updatePrimaryThumbnailPath(row.id, picked)
+        }
+    }
+
+    /**
+     * Builds groups by **trimmed scan code** for every identity on device that has a scan, unions all
+     * embeddings (each registry’s stored vector + every linked participant’s `participant_embeddings`,
+     * with legacy `race_participant_hashes.embedding` only when the new table is empty for that row),
+     * then scores each group with max cosine over all (query × historical) pairs of matching dimension.
+     *
+     * @param excludeParticipantIdForHistoricalPool when non-null, vectors from that protocol row are
+     * omitted from the historical pool so the donor’s stored embeddings do not trivially match.
+     */
+    suspend fun rankScannedOnDeviceIdentitiesByCosine(
+        queryEmbeddings: List<FloatArray>,
+        excludeParticipantIdForHistoricalPool: Long? = null,
+    ): List<ScannedIdentityLookupRank> {
+        val queries = queryEmbeddings.filter { it.isNotEmpty() }
+        if (queries.isEmpty()) return emptyList()
+
+        val byCode = identityRegistryDao.listAll()
+            .mapNotNull { ir ->
+                val code = ir.scannedPayload?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                code to ir
+            }
+            .groupBy({ it.first }, { it.second })
+
+        val ranked = ArrayList<ScannedIdentityLookupRank>(byCode.size)
+        for ((code, irs) in byCode) {
+            val registryIds = irs.map { it.id }.toSet()
+            val vectors = ArrayList<FloatArray>()
+            for (ir in irs) {
+                val rv = EmbeddingMath.parseCommaSeparated(ir.embedding)
+                if (rv.isNotEmpty()) vectors.add(rv)
+            }
+            for (rid in registryIds) {
+                for (h in participantHashDao.listHashesForIdentityRegistry(rid)) {
+                    if (excludeParticipantIdForHistoricalPool != null && h.id == excludeParticipantIdForHistoricalPool) {
+                        continue
+                    }
+                    val fromTable = participantEmbeddingDao.listEmbeddingStringsForParticipant(h.id)
+                        .mapNotNull { s ->
+                            EmbeddingMath.parseCommaSeparated(s).takeIf { v -> v.isNotEmpty() }
+                        }
+                    if (fromTable.isNotEmpty()) {
+                        vectors.addAll(fromTable)
+                    } else if (!h.embeddingFailed && h.embedding.isNotBlank()) {
+                        val lv = EmbeddingMath.parseCommaSeparated(h.embedding)
+                        if (lv.isNotEmpty()) vectors.add(lv)
+                    }
+                }
+            }
+            if (vectors.isEmpty()) continue
+
+            var best = -1f
+            var anyComparable = false
+            for (q in queries) {
+                for (h in vectors) {
+                    if (h.size != q.size) continue
+                    anyComparable = true
+                    val c = EmbeddingMath.cosineSimilarity(q, h)
+                    if (c > best) best = c
+                }
+            }
+            if (!anyComparable) continue
+
+            val thumb = irs.firstNotNullOfOrNull { r ->
+                r.primaryThumbnailPhotoPath?.trim()?.takeIf { t ->
+                    t.isNotBlank() && File(t).exists()
+                }
+            }
+            val notes = irs.firstNotNullOfOrNull { r ->
+                r.notes?.trim()?.takeIf { it.isNotEmpty() }
+            }
+            ranked.add(
+                ScannedIdentityLookupRank(
+                    scanCodeTrimmed = code,
+                    registryIds = registryIds,
+                    maxCosineSimilarity = best,
+                    registryThumbnailPath = thumb,
+                    notes = notes,
+                ),
+            )
+        }
+        ranked.sortByDescending { it.maxCosineSimilarity }
+        return ranked
+    }
 
     suspend fun getRace(raceId: String): RaceEntity? = raceDao.getRace(raceId)
 
@@ -327,6 +445,52 @@ class RaceRepository(
     }
 
     /**
+     * Face-lookup confirmation: links this protocol row to an existing on-device scanned identity
+     * (same outcome as scanning that code on the row): [scannedPayload], [RaceParticipantHashEntity.identityRegistryId],
+     * [registryInfo], registry thumbnail sync, then [mergeParticipantsSharingScannedPayload] like [updateParticipantScan].
+     *
+     * @param registryIds registry row ids that share this trimmed code (canonical link uses the smallest id).
+     */
+    suspend fun assignParticipantToScannedIdentityFromFaceLookup(
+        raceId: String,
+        participantId: Long,
+        scanCodeTrimmed: String,
+        registryIds: Set<Long>,
+    ) {
+        if (registryIds.isEmpty()) return
+        val row = participantHashDao.getById(participantId) ?: return
+        require(row.raceId == raceId)
+
+        val canonicalRegistryId = registryIds.minOrNull()!!
+        val chosenIr = identityRegistryDao.getById(canonicalRegistryId) ?: return
+        val scanStored = chosenIr.scannedPayload?.trim()?.takeIf { it.isNotEmpty() } ?: scanCodeTrimmed.trim()
+        val registryInfo = listOfNotNull(chosenIr.notes, chosenIr.scannedPayload)
+            .mapNotNull { it?.trim()?.takeIf { s -> s.isNotEmpty() } }
+            .distinct()
+            .joinToString(" · ")
+            .takeIf { it.isNotBlank() }
+
+        participantHashDao.update(
+            row.copy(
+                scannedPayload = scanStored,
+                identityRegistryId = canonicalRegistryId,
+                registryInfo = registryInfo,
+            ),
+        )
+        identityRegistryDao.updateScannedPayload(canonicalRegistryId, scanStored)
+
+        sequenceOf(row.primaryThumbnailPhotoPath, row.faceThumbnailPath).forEach { path ->
+            if (!path.isNullOrBlank() && File(path).exists()) {
+                identityRegistryDao.updatePrimaryThumbnailIfMissing(canonicalRegistryId, path)
+            }
+        }
+        updateParticipantPrimaryThumbnailIfMissing(participantId, chosenIr.primaryThumbnailPhotoPath)
+
+        mergeParticipantsSharingScannedPayload(raceId, keeperId = participantId, payload = scanStored)
+        refreshProtocolXml(raceId)
+    }
+
+    /**
      * When two protocol rows carry the same scanned code, merge extras into [keeperId]
      * (finish detections + embeddings), preserving one official participant.
      */
@@ -339,6 +503,14 @@ class RaceRepository(
         for (donorId in donors) {
             mergeParticipantIntoKeeper(raceId, keeperId = keeperId, donorId = donorId)
         }
+    }
+
+    /**
+     * Face-lookup / operator correction: merge [donorId] into [keeperId] in this race
+     * (finish detections + embeddings move to keeper; donor row removed). Does not require matching scans.
+     */
+    suspend fun mergeParticipantRowIntoKeeper(raceId: String, keeperId: Long, donorId: Long) {
+        mergeParticipantIntoKeeper(raceId, keeperId = keeperId, donorId = donorId)
     }
 
     private suspend fun mergeParticipantIntoKeeper(raceId: String, keeperId: Long, donorId: Long) {
@@ -593,6 +765,8 @@ class RaceRepository(
         val seen = LinkedHashSet<String>()
 
         fun push(path: String?, preferFinish: Boolean) {
+            if (path.isNullOrBlank()) return
+            if (RacePaths.isPathUnderRaceFacesDir(appContext, raceId, path)) return
             val canonical = normalizeExisting(path) ?: return
             val isFinish = preferFinish || finishCanonical.contains(canonical)
             if (!seen.add(canonical)) {
@@ -606,11 +780,34 @@ class RaceRepository(
         }
 
         push(p.sourcePhoto, false)
-        push(p.faceThumbnailPath, false)
         for (d in dets) {
             push(d.sourcePhotoPath, true)
         }
         return out
+    }
+
+    /** Finish-line JPEGs/PNGs stored under this race (newest first). */
+    suspend fun listFinishPhotoPathsForRace(raceId: String): List<String> {
+        val dir = RacePaths.finishPhotosDir(appContext, raceId)
+        if (!dir.isDirectory) return emptyList()
+        val files = dir.listFiles { f ->
+            f.isFile && f.name.lowercase().let { n ->
+                n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp")
+            }
+        } ?: return emptyList()
+        return files.sortedByDescending { it.lastModified() }.map { it.absolutePath }
+    }
+
+    /** Oldest start photo in [start_photos] (first pre-start capture) for list previews. */
+    suspend fun getFirstStartPhotoPathForRace(raceId: String): String? {
+        val dir = RacePaths.startPhotosDir(appContext, raceId)
+        if (!dir.isDirectory) return null
+        val files = dir.listFiles { f ->
+            f.isFile && f.name.lowercase().let { n ->
+                n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp")
+            }
+        } ?: return null
+        return files.minByOrNull { it.lastModified() }?.absolutePath
     }
 
     suspend fun refreshProtocolXml(raceId: String) {

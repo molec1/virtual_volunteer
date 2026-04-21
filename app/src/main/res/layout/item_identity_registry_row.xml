@@ -23,6 +23,7 @@
             android:layout_height="120dp"
             android:background="@drawable/bg_placeholder_photo"
             android:contentDescription="@string/participant_thumb_cd"
+            android:padding="@dimen/face_thumb_inner_padding"
             android:scaleType="centerCrop"
             tools:ignore="ImageContrastCheck" />
 

@@ -22,12 +22,13 @@ class ParticipantDashboardAdapter(
     private val onRemove: (participantId: Long) -> Unit,
     private val onEditDisplayName: (participantId: Long, currentName: String?) -> Unit,
     private val onOpenPhotos: (participantId: Long) -> Unit,
+    private val onFaceLookup: (participantId: Long) -> Unit,
 ) : ListAdapter<ParticipantDashboardRow, ParticipantDashboardAdapter.VH>(DIFF) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val inflater = LayoutInflater.from(parent.context)
         val binding = ParticipantDashboardRowBinding.inflate(inflater, parent, false)
-        return VH(binding, onScanCode, onRemove, onEditDisplayName, onOpenPhotos)
+        return VH(binding, onScanCode, onRemove, onEditDisplayName, onOpenPhotos, onFaceLookup)
     }
 
     override fun onBindViewHolder(holder: VH, position: Int) {
@@ -40,14 +41,24 @@ class ParticipantDashboardAdapter(
         private val onRemove: (Long) -> Unit,
         private val onEditDisplayName: (Long, String?) -> Unit,
         private val onOpenPhotos: (Long) -> Unit,
+        private val onFaceLookup: (Long) -> Unit,
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(row: ParticipantDashboardRow) {
             val thumbPath = sequenceOf(row.primaryThumbnailPhotoPath, row.faceThumbnailPath)
                 .firstOrNull { !it.isNullOrBlank() && File(it).exists() }
             if (!thumbPath.isNullOrBlank()) {
-                val bmp = PreviewImageLoader.loadThumbnail(thumbPath, maxSidePx = 256)
+                val bmp = PreviewImageLoader.loadThumbnailOrientedInset(
+                    thumbPath,
+                    maxSidePx = 256,
+                    edgeInsetFraction = 0.022f,
+                )
                 binding.participantThumb.setImageBitmap(bmp)
+                if (bmp != null) {
+                    binding.participantThumb.background = null
+                } else {
+                    binding.participantThumb.setBackgroundResource(R.drawable.bg_placeholder_photo)
+                }
             } else {
                 binding.participantThumb.setImageBitmap(null)
                 binding.participantThumb.setBackgroundResource(R.drawable.bg_placeholder_photo)
@@ -77,27 +88,25 @@ class ParticipantDashboardAdapter(
 
             val startMs = row.raceStartedAtEpochMillis
             val finishMs = row.finishTimeEpochMillis
+            binding.participantMovingTime.visibility = View.VISIBLE
+            val ctx = binding.root.context
             if (startMs != null && finishMs != null) {
-                binding.participantMovingTime.visibility = View.VISIBLE
                 val delta = (finishMs - startMs).coerceAtLeast(0L)
-                binding.participantMovingTime.text = binding.root.context.getString(
-                    R.string.participant_moving_time_fmt,
-                    RaceUiFormatter.formatElapsed(delta),
-                )
+                binding.participantMovingTime.text = RaceUiFormatter.formatElapsed(delta)
+                binding.participantMovingTime.setTextColor(ContextCompat.getColor(ctx, R.color.text_primary))
             } else {
-                binding.participantMovingTime.visibility = View.GONE
+                binding.participantMovingTime.text = ctx.getString(R.string.participant_dashboard_time_dash)
+                binding.participantMovingTime.setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary))
             }
 
-            val ctx = binding.root.context
             if (finishMs != null) {
                 binding.participantFinishTime.text = ctx.getString(
                     R.string.participant_finish_fmt,
                     RaceUiFormatter.formatDateTime(finishMs),
                 )
+                binding.participantFinishTime.setTextColor(ContextCompat.getColor(ctx, R.color.text_primary))
             } else {
-                binding.participantFinishTime.text = ctx.getString(
-                    R.string.participant_no_finish_yet,
-                )
+                binding.participantFinishTime.text = ctx.getString(R.string.participant_no_finish_yet)
                 binding.participantFinishTime.setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary))
             }
 
@@ -118,6 +127,7 @@ class ParticipantDashboardAdapter(
             binding.participantName.setOnClickListener {
                 onEditDisplayName(row.participantId, row.displayName)
             }
+            binding.btnFaceLookup.setOnClickListener { onFaceLookup(row.participantId) }
             binding.btnScanCode.setOnClickListener { onScanCode(row.participantId) }
             binding.btnRemoveParticipant.setOnClickListener { onRemove(row.participantId) }
         }

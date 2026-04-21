@@ -42,6 +42,17 @@ object RacePaths {
     fun testProtocolDebugLog(context: Context, raceId: String): File =
         File(raceFolder(context, raceId), "protocol_test_debug.log")
 
+    /** True if [absolutePath] resolves under [facesDir] for this race (face crops, not full-frame photos). */
+    fun isPathUnderRaceFacesDir(context: Context, raceId: String, absolutePath: String): Boolean {
+        return try {
+            val faces = facesDir(context, raceId).canonicalFile
+            val p = File(absolutePath).canonicalFile
+            p.path.startsWith(faces.path + File.separator) || p.path == faces.path
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     fun ensureRaceLayout(context: Context, raceId: String): File {
         val root = raceFolder(context, raceId)
         root.mkdirs()

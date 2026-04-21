@@ -50,6 +50,7 @@ class RaceListFragment : Fragment() {
         val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
 
         val adapter = RaceListAdapter(
+            imageLoadScope = viewLifecycleOwner.lifecycleScope,
             onOpen = { race ->
                 val bundle = Bundle().apply { putString("raceId", race.id) }
                 findNavController().navigate(R.id.action_race_list_to_race_detail, bundle)

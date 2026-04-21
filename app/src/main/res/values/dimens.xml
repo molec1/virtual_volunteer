@@ -9,4 +9,5 @@
     <dimen name="section_spacing_large">24dp</dimen>
     <dimen name="section_spacing_medium">16dp</dimen>
     <dimen name="list_content_padding">12dp</dimen>
+    <dimen name="face_thumb_inner_padding">4dp</dimen>
 </resources>

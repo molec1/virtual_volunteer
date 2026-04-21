@@ -90,14 +90,6 @@
             android:layout_marginTop="10dp"
             android:text="@string/btn_start_race" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnLookupParticipant"
-            style="@style/Widget.VirtualVolunteer.Button.Secondary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/btn_lookup_participant" />
-
         <LinearLayout
             android:id="@+id/postStartGroup"
             android:layout_width="match_parent"
