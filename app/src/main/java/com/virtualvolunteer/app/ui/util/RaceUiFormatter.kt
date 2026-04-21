@@ -37,7 +37,7 @@ object RaceUiFormatter {
     }
 
     /** CSV exports: full date + time including seconds (`dd/MM/yyyy HH:mm:ss`, device default zone). */
-    fun formatCsvDateTime(epochMillis: Long): String =
+    fun formatDateTimeWithSeconds(epochMillis: Long): String =
         csvDateTimeFormatter.format(Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()))
 
     /** Elapsed column in timings CSV uses {@code HH:mm:ss} including a zero hours segment. */

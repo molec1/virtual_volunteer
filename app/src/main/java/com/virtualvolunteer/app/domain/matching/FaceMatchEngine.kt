@@ -38,6 +38,34 @@ class FaceMatchEngine(
         return if (n.cosineSimilarity >= minCosineSimilarity) n.participant else null
     }
 
+    /** Find top N matches, sorted best-first by [MatchCandidate.cosineSimilarity]. */
+    fun nearestN(
+        observed: FloatArray,
+        pool: List<ParticipantEmbeddingSet>,
+        n: Int,
+    ): List<MatchCandidate> {
+        val candidates = ArrayList<MatchCandidate>(pool.size)
+        for (set in pool) {
+            if (!set.hasEmbeddings) continue
+            var bestForParticipant = -1f
+            for (embStr in set.embeddingStrings) {
+                val stored = EmbeddingMath.parseCommaSeparated(embStr)
+                if (stored.isEmpty() || stored.size != observed.size) continue
+                val sim = EmbeddingMath.cosineSimilarity(observed, stored)
+                if (sim > bestForParticipant) bestForParticipant = sim
+            }
+            candidates.add(MatchCandidate(set, bestForParticipant))
+        }
+        return candidates.filter { it.cosineSimilarity >= minCosineSimilarity }
+            .sortedByDescending { it.cosineSimilarity }
+            .take(n)
+    }
+
+    data class MatchCandidate(
+        val candidate: ParticipantEmbeddingSet,
+        val cosineSimilarity: Float,
+    )
+
     /** Same gate as [match] for debug UI. */
     fun threshold(): Float = minCosineSimilarity
 

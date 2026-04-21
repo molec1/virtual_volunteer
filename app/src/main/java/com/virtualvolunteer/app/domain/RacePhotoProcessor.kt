@@ -2,6 +2,7 @@ package com.virtualvolunteer.app.domain
 
 import android.content.Context
 import android.graphics.Rect
+import android.graphics.Bitmap
 import android.util.Log
 import com.virtualvolunteer.app.VirtualVolunteerApp
 import com.virtualvolunteer.app.data.files.RacePaths
@@ -12,6 +13,7 @@ import com.virtualvolunteer.app.domain.debug.FinishFaceDebugRow
 import com.virtualvolunteer.app.domain.debug.FinishPhotoDebugReport
 import com.virtualvolunteer.app.domain.face.EmbeddingMath
 import com.virtualvolunteer.app.domain.identity.GlobalIdentityResolution
+import com.google.mlkit.vision.face.Face
 import com.virtualvolunteer.app.domain.face.FaceCropBounds
 import com.virtualvolunteer.app.domain.face.FaceDebugOverlay
 import com.virtualvolunteer.app.domain.face.FaceEmbedder
@@ -32,9 +34,9 @@ import java.util.Locale
  */
 class RacePhotoProcessor(
     private val races: RaceRepository,
-    private val faces: MlKitFaceDetector,
-    private val embedder: FaceEmbedder,
-    private val matcher: FaceMatchEngine,
+    internal val faces: MlKitFaceDetector,
+    internal val embedder: FaceEmbedder,
+    internal val matcher: FaceMatchEngine,
     private val pool: RaceParticipantPool,
     private val appContext: Context,
 ) {
@@ -142,7 +144,7 @@ class RacePhotoProcessor(
                     pipelineLog("face#$faceNum descriptorCreated=true dim=${vec.size}")
                 }
 
-                if (!embeddingFailed && vec != null) {
+                if (!embeddingFailed) {
                     val existingSets = races.listParticipantEmbeddingSets(raceId).filter { it.hasEmbeddings }
                     val duplicateOf = matcher.match(vec, existingSets)
                     if (duplicateOf != null) {
@@ -156,11 +158,8 @@ class RacePhotoProcessor(
                     }
                 }
 
-                val globalId: GlobalIdentityResolution? = if (!embeddingFailed && vec != null) {
-                    races.resolveGlobalIdentity(vec)
-                } else {
-                    null
-                }
+                val globalId: GlobalIdentityResolution? =
+                    if (!embeddingFailed) races.resolveGlobalIdentity(vec) else null
 
                 val rowId = races.insertParticipantHash(
                     RaceParticipantHashEntity(
@@ -176,6 +175,7 @@ class RacePhotoProcessor(
                         createdAtEpochMillis = createdAt,
                     ),
                     initialEmbeddingSource = EmbeddingSourceType.START,
+                    primaryThumbnailPhotoPath = if (thumbnailSaved) thumbFile.absolutePath else null,
                 )
                 globalId?.let { g ->
                     pipelineLog(
@@ -519,9 +519,10 @@ class RacePhotoProcessor(
                             registryInfo = globalId.registryInfo,
                             identityRegistryId = globalId.registryId,
                             displayName = null,
-                            createdAtEpochMillis = finishTimeEpochMillis,
-                        ),
-                        initialEmbeddingSource = EmbeddingSourceType.FINISH_AUTO,
+                        createdAtEpochMillis = finishTimeEpochMillis,
+                    ),
+                    initialEmbeddingSource = EmbeddingSourceType.FINISH_AUTO,
+                    primaryThumbnailPhotoPath = if (thumbFile.exists()) thumbFile.absolutePath else null,
                     )
                     races.listParticipantHashes(raceId).first { it.id == newId }
                 }
@@ -537,12 +538,13 @@ class RacePhotoProcessor(
                         EmbeddingMath.cosineSimilarity(vec, EmbeddingMath.parseCommaSeparated(resolvedParticipant.embedding))
                 }
 
-                val outcome = races.recordFinishDetection(
+                val outcome = races.recordFinishDetectionForParticipant(
                     raceId = raceId,
-                    participantHashId = resolvedParticipant.id,
+                    participantId = resolvedParticipant.id,
                     detectedAtEpochMillis = finishTimeEpochMillis,
                     sourcePhotoPath = photoFile.absolutePath,
                     matchCosineSimilarity = cos,
+                    sourceEmbedding = vec,
                 )
 
                 val appendedEmbedding = if (matchInAvailable != null) {
@@ -599,8 +601,14 @@ class RacePhotoProcessor(
     }
 
     /** Same bitmap space ML Kit expects: full decode + EXIF upright orientation. */
-    private fun loadVisionBitmap(photoFile: File) =
+    internal fun loadVisionBitmap(photoFile: File) =
         OrientedPhotoBitmap.decodeApplyingExifOrientation(photoFile)
+
+    internal fun cropFace(bmp: Bitmap, face: Face): Bitmap? {
+        val raw = Rect(face.boundingBox)
+        val expanded = FaceCropBounds.expandFaceRect(raw, bmp.width, bmp.height, FaceCropBounds.DEFAULT_MARGIN_PER_SIDE)
+        return FaceCropBounds.cropBitmap(bmp, expanded)
+    }
 
     private fun logNoBitmap(file: File): String =
         "decode_failed path=${file.absolutePath}\n"

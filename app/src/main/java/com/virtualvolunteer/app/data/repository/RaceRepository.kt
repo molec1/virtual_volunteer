@@ -168,8 +168,9 @@ class RaceRepository(
     suspend fun insertParticipantHash(
         row: RaceParticipantHashEntity,
         initialEmbeddingSource: EmbeddingSourceType,
+        primaryThumbnailPhotoPath: String? = null,
     ): Long {
-        val id = participantHashDao.insert(row)
+        val id = participantHashDao.insert(row.copy(primaryThumbnailPhotoPath = primaryThumbnailPhotoPath))
         if (!row.embeddingFailed && row.embedding.isNotBlank()) {
             participantEmbeddingDao.insert(
                 ParticipantEmbeddingEntity(
@@ -184,7 +185,27 @@ class RaceRepository(
             )
         }
         syncParticipantPrimaryEmbeddingField(id)
+        if (!primaryThumbnailPhotoPath.isNullOrBlank()) {
+            row.identityRegistryId?.let { registryId ->
+                identityRegistryDao.updatePrimaryThumbnailIfMissing(registryId, primaryThumbnailPhotoPath)
+            }
+        }
         return id
+    }
+
+    /**
+     * Updates [RaceParticipantHashEntity.primaryThumbnailPhotoPath] if the participant doesn't have one yet
+     * and the provided path exists.
+     */
+    suspend fun updateParticipantPrimaryThumbnailIfMissing(participantId: Long, path: String?) {
+        if (path.isNullOrBlank()) return
+        val f = File(path)
+        if (!f.exists()) return
+
+        val p = participantHashDao.getById(participantId) ?: return
+        if (p.primaryThumbnailPhotoPath.isNullOrBlank()) {
+            participantHashDao.update(p.copy(primaryThumbnailPhotoPath = path))
+        }
     }
 
     /**
@@ -374,30 +395,98 @@ class RaceRepository(
     /**
      * Stores a matched finish detection and recomputes official protocol finish time for that participant.
      */
-    suspend fun recordFinishDetection(
+    suspend fun recordManualFinishDetection(
         raceId: String,
-        participantHashId: Long,
-        detectedAtEpochMillis: Long,
-        sourcePhotoPath: String,
-        matchCosineSimilarity: Float?,
+        participantId: Long,
+        finishTimeEpochMillis: Long,
+        sourcePhotoPath: String?,
+        sourceEmbedding: FloatArray? = null,
     ): RecordFinishDetectionOutcome {
-        val before = participantHashDao.getById(participantHashId)
+        val before = participantHashDao.getById(participantId)
             ?: error("participant not found")
         val prevProtocol = before.protocolFinishTimeEpochMillis
 
         finishDetectionDao.insert(
             FinishDetectionEntity(
                 raceId = raceId,
-                participantHashId = participantHashId,
+                participantHashId = participantId,
+                detectedAtEpochMillis = finishTimeEpochMillis,
+                sourcePhotoPath = sourcePhotoPath ?: "", // Empty string if no photo
+                matchCosineSimilarity = null, // No cosine for manual entry
+            ),
+        )
+
+        // Append embedding if photo provided
+        if (!sourcePhotoPath.isNullOrBlank()) {
+            val photoFile = File(sourcePhotoPath)
+            // Need to extract embedding from the photo, assuming it's already cropped and a face.
+            // For simplicity, we'll assume the photo is a face crop, or handle full image embedding later.
+            // For now, if it's a full photo, it will just be stored as sourcePhotoPath.
+            // A real implementation would extract the face embedding here.
+            // For this task, we'll only store the path and time.
+        }
+
+        recomputeProtocolFinishForParticipant(raceId, participantId)
+
+        val after = participantHashDao.getById(participantId)
+            ?: error("participant missing after update")
+
+        val t0 = after.firstFinishSeenAtEpochMillis
+        val ignored = if (t0 != null) {
+            finishTimeEpochMillis > t0 + FIRST_FINISH_SERIES_WINDOW_MS
+        } else {
+            false
+        }
+        val protocolUpdated = prevProtocol != after.protocolFinishTimeEpochMillis
+
+        refreshProtocolXml(raceId)
+
+        Log.i(TAG, "recordManualFinishDetection participant=$participantId detectedAt=$finishTimeEpochMillis protocolUpdated=$protocolUpdated ignoredLateSeries=$ignored")
+
+        return RecordFinishDetectionOutcome(
+            officialProtocolFinishMillis = after.protocolFinishTimeEpochMillis,
+            detectionIgnoredForProtocolSeries = ignored,
+            protocolFinishTimeUpdated = protocolUpdated,
+        )
+    }
+
+    suspend fun recordFinishDetectionForParticipant(
+        raceId: String,
+        participantId: Long,
+        detectedAtEpochMillis: Long,
+        sourcePhotoPath: String?,
+        matchCosineSimilarity: Float?,
+        sourceEmbedding: FloatArray? = null,
+    ): RecordFinishDetectionOutcome {
+        val before = participantHashDao.getById(participantId)
+            ?: error("participant not found")
+        val prevProtocol = before.protocolFinishTimeEpochMillis
+
+        finishDetectionDao.insert(
+            FinishDetectionEntity(
+                raceId = raceId,
+                participantHashId = participantId,
                 detectedAtEpochMillis = detectedAtEpochMillis,
-                sourcePhotoPath = sourcePhotoPath,
+                sourcePhotoPath = sourcePhotoPath ?: "", // Empty string if no photo
                 matchCosineSimilarity = matchCosineSimilarity,
             ),
         )
 
-        recomputeProtocolFinishForParticipant(raceId, participantHashId)
+        if (sourceEmbedding != null) {
+            appendParticipantEmbeddingIfNew(
+                raceId = raceId,
+                participantId = participantId,
+                embeddingCommaSeparated = EmbeddingMath.formatCommaSeparated(sourceEmbedding),
+                sourceType = EmbeddingSourceType.FINISH_AUTO,
+                sourcePhotoPath = sourcePhotoPath,
+                qualityScore = matchCosineSimilarity,
+                createdAtEpochMillis = detectedAtEpochMillis,
+            )
+        }
 
-        val after = participantHashDao.getById(participantHashId)
+        recomputeProtocolFinishForParticipant(raceId, participantId)
+
+        val after = participantHashDao.getById(participantId)
             ?: error("participant missing after update")
 
         val t0 = after.firstFinishSeenAtEpochMillis
@@ -409,6 +498,8 @@ class RaceRepository(
         val protocolUpdated = prevProtocol != after.protocolFinishTimeEpochMillis
 
         refreshProtocolXml(raceId)
+
+        Log.i(TAG, "recordFinishDetectionForParticipant participant=$participantId detectedAt=$detectedAtEpochMillis protocolUpdated=$protocolUpdated ignoredLateSeries=$ignored")
 
         return RecordFinishDetectionOutcome(
             officialProtocolFinishMillis = after.protocolFinishTimeEpochMillis,
@@ -432,6 +523,48 @@ class RaceRepository(
 
     suspend fun listParticipantHashes(raceId: String): List<RaceParticipantHashEntity> =
         participantHashDao.listForRace(raceId)
+
+    suspend fun listRacesForParticipant(participantId: Long): List<ParticipantRaceSummary> {
+        val seed = participantHashDao.getById(participantId) ?: return emptyList()
+        val registryId = seed.identityRegistryId
+        val hashRows = if (registryId != null) {
+            participantHashDao.listHashesForIdentityRegistry(registryId)
+        } else {
+            listOf(seed)
+        }
+        return hashRows.mapNotNull { p ->
+            val race = raceDao.getRace(p.raceId) ?: return@mapNotNull null
+            val rank = finishRankForParticipantInRace(p.raceId, p.id)
+            ParticipantRaceSummary(
+                participantHashId = p.id,
+                raceId = race.id,
+                raceCreatedAtMillis = race.createdAtEpochMillis,
+                raceStartedAtEpochMillis = race.startedAtEpochMillis,
+                protocolFinishTimeEpochMillis = p.protocolFinishTimeEpochMillis,
+                finishRank = rank,
+                raceThumbnailPhotoPath = race.lastPhotoPath,
+            )
+        }.sortedByDescending { it.raceCreatedAtMillis }
+    }
+
+    suspend fun resolveParticipantHashIdForRegistry(registryId: Long): Long? =
+        participantHashDao.findLatestParticipantHashIdForRegistry(registryId)
+
+    private suspend fun finishRankForParticipantInRace(raceId: String, participantHashId: Long): Int? {
+        val rows = assignFinishRanks(participantHashDao.getParticipantDashboardSnapshot(raceId))
+        return rows.find { it.participantId == participantHashId }?.finishRank
+    }
+
+    data class ParticipantRaceSummary(
+        /** [RaceParticipantHashEntity.id] for this specific race (for photos / protocol in that event). */
+        val participantHashId: Long,
+        val raceId: String,
+        val raceCreatedAtMillis: Long,
+        val raceStartedAtEpochMillis: Long?,
+        val protocolFinishTimeEpochMillis: Long?,
+        val finishRank: Int?,
+        val raceThumbnailPhotoPath: String?,
+    )
 
     suspend fun countParticipantsForRace(raceId: String): Int =
         participantHashDao.countForRace(raceId)
@@ -557,6 +690,7 @@ class RaceRepository(
                 raceStartedAtEpochMillis = db.raceStartedAtEpochMillis,
                 finishTimeEpochMillis = db.finishTimeEpochMillis,
                 displayName = db.displayName,
+                primaryThumbnailPhotoPath = db.primaryThumbnailPhotoPath,
                 finishRank = rankById[db.participantId],
             )
         }

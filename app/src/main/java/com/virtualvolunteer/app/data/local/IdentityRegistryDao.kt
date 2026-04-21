@@ -25,4 +25,12 @@ interface IdentityRegistryDao {
 
     @Query("SELECT * FROM identity_registry WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): IdentityRegistryEntity?
+
+    @Query(
+        """
+        UPDATE identity_registry SET primaryThumbnailPhotoPath = :path 
+        WHERE id = :id AND (primaryThumbnailPhotoPath IS NULL OR TRIM(primaryThumbnailPhotoPath) = '')
+        """,
+    )
+    suspend fun updatePrimaryThumbnailIfMissing(id: Long, path: String): Int
 }

@@ -17,4 +17,5 @@ data class IdentityRegistryEntity(
     /** Optional notes / merged info shown when matched. */
     val notes: String? = null,
     val createdAtEpochMillis: Long,
+    val primaryThumbnailPhotoPath: String? = null,
 )

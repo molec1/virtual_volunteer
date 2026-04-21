@@ -90,6 +90,14 @@
             android:layout_marginTop="10dp"
             android:text="@string/btn_start_race" />
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnLookupParticipant"
+            style="@style/Widget.VirtualVolunteer.Button.Secondary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/btn_lookup_participant" />
+
         <LinearLayout
             android:id="@+id/postStartGroup"
             android:layout_width="match_parent"
@@ -113,6 +121,15 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:text="@string/btn_finish_race" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnAddManualFinish"
+                style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="@string/btn_add_manual_finish" />
+
         </LinearLayout>
 
         <!-- Export -->
@@ -148,48 +165,8 @@
             android:text="@string/btn_export_participants_csv" />
 
         <!-- Offline -->
-        <TextView
-            android:id="@+id/offlineTestHeader"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="@dimen/section_spacing_large"
-            android:text="@string/offline_test_header"
-            android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnImportStartPhotos"
-            style="@style/Widget.VirtualVolunteer.Button.Secondary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/btn_import_start_photos" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnImportFinishPhotos"
-            style="@style/Widget.VirtualVolunteer.Button.Secondary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/btn_import_finish_photos" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnBuildTestProtocol"
-            style="@style/Widget.VirtualVolunteer.Button.Secondary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/btn_build_test_protocol" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnTestSingleFinishPhoto"
-            style="@style/Widget.VirtualVolunteer.Button.Secondary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/btn_test_single_finish_photo" />
-
         <com.google.android.material.card.MaterialCardView
-            android:id="@+id/dashboardCard"
+            android:id="@+id/offlineTestCard"
             style="@style/Widget.VirtualVolunteer.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -198,63 +175,141 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="@dimen/card_padding">
+                android:orientation="vertical">
 
-                <TextView
+                <LinearLayout
+                    android:id="@+id/offlineTestHeaderLayout"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/dashboard_preview_title"
-                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel" />
-
-                <FrameLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:minHeight="120dp">
-
-                    <ImageView
-                        android:id="@+id/lastPhotoPreview"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:adjustViewBounds="true"
-                        android:background="@drawable/bg_placeholder_photo"
-                        android:contentDescription="@string/dashboard_preview_title"
-                        android:maxHeight="240dp"
-                        android:scaleType="fitCenter"
-                        tools:ignore="ImageContrastCheck" />
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="@dimen/card_padding">
 
                     <TextView
-                        android:id="@+id/lastPhotoEmptyHint"
-                        android:layout_width="wrap_content"
+                        android:id="@+id/offlineTestHeader"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_gravity="center"
-                        android:padding="16dp"
-                        android:text="@string/dashboard_no_photo_hint"
-                        android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta" />
-                </FrameLayout>
+                        android:layout_weight="1"
+                        android:text="@string/offline_test_header"
+                        android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel" />
 
-                <TextView
-                    android:id="@+id/dashboardParticipantsTitle"
+                    <ImageView
+                        android:id="@+id/offlineTestExpandIcon"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:contentDescription="@string/expand_collapse_cd"
+                        android:src="@drawable/ic_chevron_up" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/offlineTestContent"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/section_spacing_medium"
-                    android:text="@string/dashboard_participants_title"
-                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel"
-                    android:visibility="gone"
-                    tools:visibility="visible" />
+                    android:orientation="vertical"
+                    android:paddingHorizontal="@dimen/card_padding"
+                    android:paddingBottom="@dimen/card_padding">
 
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/participantsRecycler"
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnImportStartPhotos"
+                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/btn_import_start_photos" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnImportFinishPhotos"
+                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/btn_import_finish_photos" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnBuildTestProtocol"
+                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/btn_build_test_protocol" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnTestSingleFinishPhoto"
+                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/btn_test_single_finish_photo" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/participantsCard"
+            style="@style/Widget.VirtualVolunteer.Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/section_spacing_large">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:id="@+id/participantsHeaderLayout"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:nestedScrollingEnabled="false"
-                    android:visibility="gone"
-                    app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-                    tools:itemCount="2"
-                    tools:listitem="@layout/participant_dashboard_row"
-                    tools:visibility="visible" />
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="@dimen/card_padding">
+
+                    <TextView
+                        android:id="@+id/dashboardParticipantsTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/dashboard_participants_title"
+                        android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel"
+                        android:visibility="gone"
+                        tools:visibility="visible" />
+
+                    <ImageView
+                        android:id="@+id/participantsExpandIcon"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:contentDescription="@string/expand_collapse_cd"
+                        android:src="@drawable/ic_chevron_up" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/participantsContent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="@dimen/card_padding"
+                    android:paddingBottom="@dimen/card_padding">
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/participantsRecycler"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:clipToPadding="false"
+                        android:nestedScrollingEnabled="false"
+                        android:paddingTop="@dimen/list_content_padding"
+                        android:paddingBottom="@dimen/list_content_padding"
+                        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                        tools:itemCount="4"
+                        tools:listitem="@layout/participant_dashboard_row"
+                        tools:visibility="visible" />
+                </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -268,34 +323,63 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="@dimen/card_padding">
+                android:orientation="vertical">
 
-                <TextView
+                <LinearLayout
+                    android:id="@+id/pipelineDebugHeaderLayout"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/pipeline_debug_title"
-                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel" />
-
-                <ScrollView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:fillViewport="false"
-                    android:maxHeight="160dp"
-                    android:nestedScrollingEnabled="false"
-                    android:scrollbars="vertical">
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="@dimen/card_padding">
 
                     <TextView
-                        android:id="@+id/pipelineDebugText"
+                        android:id="@+id/pipelineDebugTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/pipeline_debug_title"
+                        android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel" />
+
+                    <ImageView
+                        android:id="@+id/pipelineDebugExpandIcon"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:contentDescription="@string/expand_collapse_cd"
+                        android:src="@drawable/ic_chevron_up" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/pipelineDebugContent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="@dimen/card_padding"
+                    android:paddingBottom="@dimen/card_padding">
+
+                    <ScrollView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:fontFamily="monospace"
-                        android:textColor="@color/text_secondary"
-                        android:textIsSelectable="true"
-                        android:textSize="11sp"
-                        tools:text="Pipeline log…" />
-                </ScrollView>
+                        android:layout_marginTop="10dp"
+                        android:fillViewport="false"
+                        android:maxHeight="160dp"
+                        android:nestedScrollingEnabled="false"
+                        android:scrollbars="vertical">
+
+                        <TextView
+                            android:id="@+id/pipelineDebugText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="monospace"
+                            android:textColor="@color/text_secondary"
+                            android:textIsSelectable="true"
+                            android:textSize="11sp"
+                            tools:text="Pipeline log…" />
+                    </ScrollView>
+                </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
     </LinearLayout>

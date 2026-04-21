@@ -89,7 +89,7 @@ Protocol XML and ordering use **official** finish time ascending. Protocol XML s
 
 | Area | Packages / locations | Responsibility |
 |------|----------------------|----------------|
-| **UI** | `ui.racelist`, `ui.racedetail`, `ui.identity`, `ui.scan`, `ui.util` | Race list (incl. **device identity registry** screen), race detail (participant **photo grid** bottom sheet on face tap; finish sources show a tick), barcode capture, previews. |
+| **UI** | `ui.racelist`, `ui.racedetail`, `ui.identity`, `ui.camera`, `ui.scan`, `ui.util` | Race list, race detail (participant list **list view** with **finish rank**; on-tap opens **race-local photo sheet**; **face lookup**; start/finish photos via in-app **CameraX** `CameraCaptureFragment` for **multi-shot** capture), **device identity registry** (grid; tap resolves **registry id → latest `race_participant_hashes` id** then **participant detail** lists all races for that **shared `identityRegistryId`**, with per-race **protocol row id** for photos), barcode capture, previews. |
 | **Data** | `data.local` (Room), `data.repository`, `data.files`, `data.xml`, `data.model` | Persistence, `RaceRepository`, filesystem layout, mirrored XML. |
 | **Domain** | `domain` (`RacePhotoProcessor`, `face`, `matching`, `time`, `identity`, `participants`, `debug`) | Orchestration, ML/embeddings, **multi-embedding match** (`ParticipantEmbeddingSet`, `FaceMatchEngine`), protocols — **no Android UI**. |
 | **Export** | `export` | ZIP/CSV/version strings. |

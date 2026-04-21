@@ -19,13 +19,15 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.content.ContextCompat
+import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation.fragment.findNavController
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.VirtualVolunteerApp
@@ -41,6 +43,7 @@ import com.virtualvolunteer.app.domain.face.TfliteFaceEmbedder
 import com.virtualvolunteer.app.domain.matching.FaceMatchEngine
 import com.virtualvolunteer.app.domain.participants.RoomRaceParticipantPool
 import com.virtualvolunteer.app.export.RaceZipExporter
+import com.virtualvolunteer.app.ui.camera.CameraCaptureFragment
 import com.virtualvolunteer.app.ui.scan.BarcodeScanActivity
 import com.virtualvolunteer.app.ui.util.PreviewImageLoader
 import com.virtualvolunteer.app.ui.util.RaceUiFormatter
@@ -62,6 +65,11 @@ class RaceDetailFragment : Fragment() {
 
     private val raceId: String
         get() = requireArguments().getString(ARG_RACE_ID) ?: error("raceId missing")
+
+    // Expanded state for collapsible sections
+    private var offlineTestExpanded = false
+    private var participantsExpanded = true
+    private var pipelineDebugExpanded = false
 
     private lateinit var faceDetector: MlKitFaceDetector
     private lateinit var faceEmbedder: TfliteFaceEmbedder
@@ -118,11 +126,6 @@ class RaceDetailFragment : Fragment() {
 
     private var pendingCameraAction: (() -> Unit)? = null
 
-    private lateinit var takeStartPictureLauncher: androidx.activity.result.ActivityResultLauncher<Uri>
-    private lateinit var takeFinishPictureLauncher: androidx.activity.result.ActivityResultLauncher<Uri>
-    private var pendingStartPhotoFile: File? = null
-    private var pendingFinishPhotoFile: File? = null
-
     private val pickMultipleStartDocuments = registerForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris ->
@@ -145,11 +148,7 @@ class RaceDetailFragment : Fragment() {
                 }
             }
             withContext(Dispatchers.Main) {
-                Toast.makeText(
-                    requireContext(),
-                    "Imported $files file(s). Participant rows added: $hashes",
-                    Toast.LENGTH_LONG,
-                ).show()
+                // Removed Toast confirmation
             }
         }
     }
@@ -193,12 +192,7 @@ class RaceDetailFragment : Fragment() {
                 "importFinishPhotos done copied=$copied finishRowsAdded=$finishRowsAdded failures=$ingestFailures",
             )
             withContext(Dispatchers.Main) {
-                Toast.makeText(
-                    requireContext(),
-                    "Finish photos: copied $copied, finish rows added $finishRowsAdded" +
-                        if (ingestFailures > 0) ", failures $ingestFailures" else "",
-                    Toast.LENGTH_LONG,
-                ).show()
+                // Removed Toast confirmation
             }
         }
     }
@@ -247,61 +241,6 @@ class RaceDetailFragment : Fragment() {
             appContext = requireActivity().applicationContext,
         )
 
-        takeStartPictureLauncher = registerForActivityResult(
-            ActivityResultContracts.TakePicture(),
-        ) { ok ->
-            val file = pendingStartPhotoFile
-            pendingStartPhotoFile = null
-            if (!ok || file == null || !file.exists()) {
-                return@registerForActivityResult
-            }
-            lifecycleScope.launch(Dispatchers.IO) {
-                val result = photoProcessor.ingestStartPhoto(raceId, file)
-                withContext(Dispatchers.Main) {
-                    result.onSuccess { count ->
-                        Toast.makeText(
-                            requireContext(),
-                            "Participants added: $count",
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }.onFailure {
-                        Toast.makeText(
-                            requireContext(),
-                            "Start photo processing failed",
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }
-                }
-            }
-        }
-
-        takeFinishPictureLauncher = registerForActivityResult(
-            ActivityResultContracts.TakePicture(),
-        ) { ok ->
-            val file = pendingFinishPhotoFile
-            pendingFinishPhotoFile = null
-            if (!ok || file == null || !file.exists()) {
-                return@registerForActivityResult
-            }
-            lifecycleScope.launch(Dispatchers.IO) {
-                val result = photoProcessor.ingestFinishPhoto(raceId, file)
-                withContext(Dispatchers.Main) {
-                    result.onSuccess { count ->
-                        Toast.makeText(
-                            requireContext(),
-                            "Finish rows added: $count",
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }.onFailure {
-                        Toast.makeText(
-                            requireContext(),
-                            "Finish photo processing failed",
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }
-                }
-            }
-        }
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -319,7 +258,7 @@ class RaceDetailFragment : Fragment() {
             onScanCode = { id -> openBarcodeScan(id) },
             onRemove = { id -> confirmRemoveParticipant(id) },
             onEditDisplayName = { id, current -> showParticipantNameEditor(id, current) },
-            onOpenPhotos = { id -> openParticipantPhotos(id) },
+            onOpenPhotos = { id -> openRaceParticipantPhotos(raceId, id) }, // Changed to open RaceParticipantPhotosBottomSheet
         )
         binding.participantsRecycler.adapter = participantAdapter
         binding.participantsRecycler.itemAnimator = null
@@ -337,8 +276,8 @@ class RaceDetailFragment : Fragment() {
                     repo.observeRace(raceId).collect { race ->
                         latestRace = race
                         if (race != null) {
-                            bindLastPhotoPreview(race.lastPhotoPath)
                             renderUi(race)
+                            renderCollapsibleSections()
                         }
                     }
                 }
@@ -351,9 +290,12 @@ class RaceDetailFragment : Fragment() {
                             participantAdapter.submitList(rows)
                             val showProtocol = rows.isNotEmpty() || finishN > 0
                             binding.dashboardParticipantsTitle.visibility =
-                                if (showProtocol) View.VISIBLE else View.GONE
+                                if (showProtocol && participantsExpanded) View.VISIBLE else View.GONE
                             binding.participantsRecycler.visibility =
-                                if (showProtocol) View.VISIBLE else View.GONE
+                                if (showProtocol && participantsExpanded) View.VISIBLE else View.GONE
+                            binding.scrollContent.post {
+                                binding.participantsRecycler.requestLayout()
+                            }
                         }
                 }
             }
@@ -377,6 +319,15 @@ class RaceDetailFragment : Fragment() {
         binding.btnTestSingleFinishPhoto.setOnClickListener {
             pickSingleFinishDocument.launch(arrayOf("image/*"))
         }
+
+        binding.btnAddManualFinish.setOnClickListener { openManualFinishBottomSheet() }
+
+        binding.btnLookupParticipant.setOnClickListener { openParticipantLookupBottomSheet() }
+
+        // Collapsible section headers
+        binding.offlineTestHeaderLayout.setOnClickListener { toggleOfflineTestExpansion() }
+        binding.participantsHeaderLayout.setOnClickListener { toggleParticipantsExpansion() }
+        binding.pipelineDebugHeaderLayout.setOnClickListener { togglePipelineDebugExpansion() }
     }
 
     override fun onResume() {
@@ -389,9 +340,9 @@ class RaceDetailFragment : Fragment() {
             participantAdapter.submitList(rows)
             val showProtocol = rows.isNotEmpty() || finishN > 0
             binding.dashboardParticipantsTitle.visibility =
-                if (showProtocol) View.VISIBLE else View.GONE
+                if (showProtocol && participantsExpanded) View.VISIBLE else View.GONE
             binding.participantsRecycler.visibility =
-                if (showProtocol) View.VISIBLE else View.GONE
+                if (showProtocol && participantsExpanded) View.VISIBLE else View.GONE
             binding.scrollContent.post {
                 binding.participantsRecycler.requestLayout()
             }
@@ -436,21 +387,30 @@ class RaceDetailFragment : Fragment() {
         binding.btnFinishRace.isEnabled = race.status != RaceStatus.FINISHED && race.status != RaceStatus.EXPORTED
     }
 
-    private fun bindLastPhotoPreview(path: String?) {
-        if (path.isNullOrBlank()) {
-            binding.lastPhotoPreview.setImageBitmap(null)
-            binding.lastPhotoPreview.setBackgroundResource(R.drawable.bg_placeholder_photo)
-            binding.lastPhotoEmptyHint.visibility = View.VISIBLE
-            return
-        }
-        binding.lastPhotoEmptyHint.visibility = View.GONE
-        lifecycleScope.launch(Dispatchers.Default) {
-            val bmp = PreviewImageLoader.loadThumbnailOriented(path, maxSidePx = 1080)
-            withContext(Dispatchers.Main) {
-                binding.lastPhotoPreview.background = null
-                binding.lastPhotoPreview.setImageBitmap(bmp)
-            }
-        }
+    private fun renderCollapsibleSections() {
+        binding.offlineTestContent.visibility = if (offlineTestExpanded) View.VISIBLE else View.GONE
+        binding.offlineTestExpandIcon.setImageResource(if (offlineTestExpanded) R.drawable.ic_chevron_up else R.drawable.ic_chevron_down)
+
+        binding.participantsContent.visibility = if (participantsExpanded) View.VISIBLE else View.GONE
+        binding.participantsExpandIcon.setImageResource(if (participantsExpanded) R.drawable.ic_chevron_up else R.drawable.ic_chevron_down)
+
+        binding.pipelineDebugContent.visibility = if (pipelineDebugExpanded) View.VISIBLE else View.GONE
+        binding.pipelineDebugExpandIcon.setImageResource(if (pipelineDebugExpanded) R.drawable.ic_chevron_up else R.drawable.ic_chevron_down)
+    }
+
+    private fun toggleOfflineTestExpansion() {
+        offlineTestExpanded = !offlineTestExpanded
+        renderCollapsibleSections()
+    }
+
+    private fun toggleParticipantsExpansion() {
+        participantsExpanded = !participantsExpanded
+        renderCollapsibleSections()
+    }
+
+    private fun togglePipelineDebugExpansion() {
+        pipelineDebugExpanded = !pipelineDebugExpanded
+        renderCollapsibleSections()
     }
 
     override fun onDestroyView() {
@@ -471,6 +431,7 @@ class RaceDetailFragment : Fragment() {
 
     companion object {
         const val ARG_RACE_ID = "raceId"
+        const val ARG_PARTICIPANT_ID = "participantId"
         private const val TAG = "RaceDetail"
     }
 
@@ -482,44 +443,37 @@ class RaceDetailFragment : Fragment() {
     }
 
     fun onPreStartPhotoClicked() {
-        runWithCameraPermission {
-            try {
-                val file = RacePhotoProcessor.defaultOutputStartPhotoFile(requireContext(), raceId)
-                pendingStartPhotoFile = file
-                val uri = FileProvider.getUriForFile(
-                    requireContext(),
-                    "${requireContext().packageName}.fileprovider",
-                    file,
-                )
-                takeStartPictureLauncher.launch(uri)
-            } catch (_: Throwable) {
-                Toast.makeText(requireContext(), "Unable to start camera capture", Toast.LENGTH_SHORT).show()
-            }
-        }
+        findNavController().navigate(
+            R.id.action_race_detail_to_cameraCaptureFragment,
+            bundleOf(
+                CameraCaptureFragment.ARG_RACE_ID to raceId,
+                CameraCaptureFragment.ARG_CAPTURE_MODE to CameraCaptureFragment.MODE_START_PHOTO,
+            ),
+        )
     }
 
     fun onTakeFinishPhotoClicked() {
-        runWithCameraPermission {
-            try {
-                val file = RacePhotoProcessor.defaultOutputFinishPhotoFile(requireContext(), raceId)
-                pendingFinishPhotoFile = file
-                val uri = FileProvider.getUriForFile(
-                    requireContext(),
-                    "${requireContext().packageName}.fileprovider",
-                    file,
-                )
-                takeFinishPictureLauncher.launch(uri)
-            } catch (_: Throwable) {
-                Toast.makeText(requireContext(), "Unable to start camera capture", Toast.LENGTH_SHORT).show()
-            }
-        }
+        findNavController().navigate(
+            R.id.action_race_detail_to_cameraCaptureFragment,
+            bundleOf(
+                CameraCaptureFragment.ARG_RACE_ID to raceId,
+                CameraCaptureFragment.ARG_CAPTURE_MODE to CameraCaptureFragment.MODE_FINISH_PHOTO,
+            ),
+        )
     }
 
     fun onFinishRaceClicked() {
-        val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
-        lifecycleScope.launch(Dispatchers.IO) {
-            repo.markFinished(raceId, System.currentTimeMillis())
-        }
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.finish_race_confirm_title)
+            .setMessage(R.string.finish_race_confirm_message)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.action_finish) { _, _ ->
+                lifecycleScope.launch(Dispatchers.IO) {
+                    (requireActivity().application as VirtualVolunteerApp).raceRepository
+                        .markFinished(raceId, System.currentTimeMillis())
+                }
+            }
+            .show()
     }
 
     fun onBuildTestProtocolClicked() {
@@ -672,6 +626,21 @@ class RaceDetailFragment : Fragment() {
     private fun openParticipantPhotos(participantId: Long) {
         ParticipantPhotosBottomSheet.newInstance(raceId, participantId)
             .show(childFragmentManager, "participantPhotos")
+    }
+
+    private fun openParticipantLookupBottomSheet() {
+        ParticipantLookupBottomSheet.newInstance(raceId)
+            .show(childFragmentManager, "participantLookup")
+    }
+
+    private fun openManualFinishBottomSheet() {
+        ManualFinishInputBottomSheet.newInstance(raceId)
+            .show(childFragmentManager, "manualFinishInput")
+    }
+
+    private fun openRaceParticipantPhotos(raceId: String, participantId: Long) {
+        RaceParticipantPhotosBottomSheet.newInstance(raceId, participantId)
+            .show(childFragmentManager, "raceParticipantPhotos")
     }
 
     private fun confirmRemoveParticipant(participantId: Long) {

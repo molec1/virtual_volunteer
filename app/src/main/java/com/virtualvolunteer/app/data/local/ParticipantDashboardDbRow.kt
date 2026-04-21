@@ -12,6 +12,7 @@ data class ParticipantDashboardDbRow(
     val faceThumbnailPath: String?,
     val scannedPayload: String?,
     val registryInfo: String?,
+    val primaryThumbnailPhotoPath: String?,
     val raceStartedAtEpochMillis: Long?,
     val createdAtEpochMillis: Long,
     val finishTimeEpochMillis: Long?,

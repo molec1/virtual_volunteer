@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="@dimen/card_padding"
+    android:paddingVertical="@dimen/list_content_padding">
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/participantCard"
+        style="@style/Widget.VirtualVolunteer.Card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?attr/selectableItemBackground">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="@dimen/card_padding">
+
+            <ImageView
+                android:id="@+id/participantLookupThumbnail"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:layout_gravity="center_vertical"
+                android:background="@drawable/bg_placeholder_photo"
+                android:contentDescription="@string/participant_thumb_cd"
+                android:scaleType="centerCrop"
+                tools:ignore="ImageContrastCheck" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/section_spacing_medium"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/participantLookupName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.Title"
+                    tools:text="John Doe (ID 123)" />
+
+                <TextView
+                    android:id="@+id/participantLookupScanCode"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
+                    tools:text="Scan: ABC123" />
+
+                <TextView
+                    android:id="@+id/participantLookupCosineSimilarity"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
+                    tools:text="Similarity: 0.95" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+</LinearLayout>

@@ -12,6 +12,7 @@ data class ParticipantDashboardRow(
     val faceThumbnailPath: String?,
     val scannedPayload: String?,
     val registryInfo: String?,
+    val primaryThumbnailPhotoPath: String?,
     /** Race gun time for moving-time calculation (millis). */
     val raceStartedAtEpochMillis: Long?,
     val finishTimeEpochMillis: Long?,

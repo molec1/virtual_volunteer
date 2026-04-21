@@ -9,28 +9,42 @@ import androidx.recyclerview.widget.RecyclerView
 import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.data.local.IdentityRegistryEntity
 import com.virtualvolunteer.app.databinding.ItemIdentityRegistryRowBinding
+import com.virtualvolunteer.app.ui.util.PreviewImageLoader
 import com.virtualvolunteer.app.ui.util.RaceUiFormatter
+import java.io.File
 
 /**
  * Rows for [IdentityRegistryEntity]: scan code and notes captured on this device.
  */
-class IdentityRegistryAdapter :
-    ListAdapter<IdentityRegistryEntity, IdentityRegistryAdapter.VH>(DIFF) {
+class IdentityRegistryAdapter(
+    private val onItemClick: (participantId: Long) -> Unit,
+) : ListAdapter<IdentityRegistryEntity, IdentityRegistryAdapter.VH>(DIFF) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val inflater = LayoutInflater.from(parent.context)
         val binding = ItemIdentityRegistryRowBinding.inflate(inflater, parent, false)
-        return VH(binding)
+        return VH(binding, onItemClick)
     }
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         holder.bind(getItem(position))
     }
 
-    class VH(private val binding: ItemIdentityRegistryRowBinding) :
+    class VH(private val binding: ItemIdentityRegistryRowBinding, private val onItemClick: (Long) -> Unit) :
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(row: IdentityRegistryEntity) {
+            binding.root.setOnClickListener { onItemClick(row.id) }
+
+            val thumbPath = row.primaryThumbnailPhotoPath?.takeIf { File(it).exists() }
+            if (!thumbPath.isNullOrBlank()) {
+                val bmp = PreviewImageLoader.loadThumbnail(thumbPath, maxSidePx = 256)
+                binding.registryThumb.setImageBitmap(bmp)
+            } else {
+                binding.registryThumb.setImageBitmap(null)
+                binding.registryThumb.setBackgroundResource(R.drawable.bg_placeholder_photo)
+            }
+
             binding.registryIdText.text =
                 binding.root.context.getString(R.string.identity_registry_id_fmt, row.id)
 

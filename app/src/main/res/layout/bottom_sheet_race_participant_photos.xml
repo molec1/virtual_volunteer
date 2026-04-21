@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/surface_white"
+    android:orientation="vertical"
+    android:paddingHorizontal="@dimen/screen_horizontal_padding"
+    android:paddingTop="16dp"
+    android:paddingBottom="24dp">
+
+    <TextView
+        android:id="@+id/sheetTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/participant_photos_sheet_title"
+        android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel"
+        android:textColor="@color/text_primary" />
+
+    <TextView
+        android:id="@+id/sheetSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
+        android:textColor="@color/text_secondary"
+        tools:text="Participant Name (Race Name)" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/photosRecycler"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:clipToPadding="false"
+        android:paddingTop="@dimen/list_content_padding"
+        android:paddingBottom="@dimen/list_content_padding"
+        app:layoutManager="androidx.recyclerview.widget.GridLayoutManager"
+        app:spanCount="3"
+        tools:itemCount="6"
+        tools:listitem="@layout/item_participant_photo_tile" />
+
+    <TextView
+        android:id="@+id/emptyHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/participant_photos_empty"
+        android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
+        android:textColor="@color/text_secondary"
+        android:visibility="gone"
+        tools:visibility="visible" />
+
+</LinearLayout>

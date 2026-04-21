@@ -18,6 +18,26 @@ interface ParticipantHashDao {
     @Query("SELECT * FROM race_participant_hashes WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): RaceParticipantHashEntity?
 
+    /** All protocol rows linked to the same global identity (across races). */
+    @Query(
+        """
+        SELECT * FROM race_participant_hashes 
+        WHERE identityRegistryId = :identityRegistryId 
+        ORDER BY createdAtEpochMillis DESC
+        """,
+    )
+    suspend fun listHashesForIdentityRegistry(identityRegistryId: Long): List<RaceParticipantHashEntity>
+
+    /** Latest participant hash row for this registry (for navigation into participant detail). */
+    @Query(
+        """
+        SELECT id FROM race_participant_hashes 
+        WHERE identityRegistryId = :identityRegistryId 
+        ORDER BY createdAtEpochMillis DESC LIMIT 1
+        """,
+    )
+    suspend fun findLatestParticipantHashIdForRegistry(identityRegistryId: Long): Long?
+
     @Update
     suspend fun update(row: RaceParticipantHashEntity)
 
@@ -56,6 +76,7 @@ interface ParticipantHashDao {
             END AS embeddingFailed,
             h.sourcePhoto AS sourcePhoto,
             h.faceThumbnailPath AS faceThumbnailPath,
+            h.primaryThumbnailPhotoPath AS primaryThumbnailPhotoPath,
             COALESCE(NULLIF(TRIM(h.scannedPayload), ''), ir.scannedPayload) AS scannedPayload,
             h.registryInfo AS registryInfo,
             COALESCE(
@@ -97,6 +118,7 @@ interface ParticipantHashDao {
             END AS embeddingFailed,
             h.sourcePhoto AS sourcePhoto,
             h.faceThumbnailPath AS faceThumbnailPath,
+            h.primaryThumbnailPhotoPath AS primaryThumbnailPhotoPath,
             COALESCE(NULLIF(TRIM(h.scannedPayload), ''), ir.scannedPayload) AS scannedPayload,
             h.registryInfo AS registryInfo,
             COALESCE(

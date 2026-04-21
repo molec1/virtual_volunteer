@@ -29,11 +29,51 @@
         <argument
             android:name="raceId"
             app:argType="string" />
+
+        <action
+            android:id="@+id/action_raceDetailFragment_to_participantDetailFragment"
+            app:destination="@id/participantDetailFragment" />
+
+        <action
+            android:id="@+id/action_race_detail_to_cameraCaptureFragment"
+            app:destination="@id/camera_capture" />
     </fragment>
 
     <fragment
         android:id="@+id/identity_registry"
         android:name="com.virtualvolunteer.app.ui.identity.IdentityRegistryFragment"
         android:label="@string/identity_registry_title"
-        tools:layout="@layout/fragment_identity_registry" />
+        tools:layout="@layout/fragment_identity_registry">
+
+        <action
+            android:id="@+id/action_identityRegistryFragment_to_participantDetailFragment"
+            app:destination="@id/participantDetailFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/participantDetailFragment"
+        android:name="com.virtualvolunteer.app.ui.racedetail.ParticipantDetailFragment"
+        android:label="Participant Details"
+        tools:layout="@layout/fragment_participant_detail">
+
+        <argument
+            android:name="participantId"
+            app:argType="long" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/camera_capture"
+        android:name="com.virtualvolunteer.app.ui.camera.CameraCaptureFragment"
+        android:label="@string/camera_capture_title"
+        tools:layout="@layout/fragment_camera_capture">
+
+        <argument
+            android:name="raceId"
+            app:argType="string" />
+
+        <argument
+            android:name="captureMode"
+            app:argType="string"
+            android:defaultValue="START_PHOTO" />
+    </fragment>
 </navigation>

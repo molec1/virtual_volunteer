@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FinishDetectionEntity::class,
         IdentityRegistryEntity::class,
     ],
-    version = 8,
+    version = 10,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -136,15 +136,33 @@ abstract class AppDatabase : RoomDatabase() {
                     """.trimIndent(),
                 )
 
-                db.execSQL("DROP TABLE finish_records")
-            }
-        }
+        db.execSQL("DROP TABLE finish_records")
+    }
+}
 
-        /**
-         * Splits legacy single-vector column on [RaceParticipantHashEntity] into [participant_embeddings].
-         * Finish-born rows (source path under finish_photos) get [EmbeddingSourceType.FINISH_AUTO].
-         */
-        private val MIGRATION_7_8 = object : Migration(7, 8) {
+/**
+ * Adds [RaceParticipantHashEntity.primaryThumbnailPhotoPath] column.
+ */
+private val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE race_participant_hashes ADD COLUMN primaryThumbnailPhotoPath TEXT")
+    }
+}
+
+/**
+ * Adds [IdentityRegistryEntity.primaryThumbnailPhotoPath] column.
+ */
+private val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE identity_registry ADD COLUMN primaryThumbnailPhotoPath TEXT")
+    }
+}
+
+/**
+ * Splits legacy single-vector column on [RaceParticipantHashEntity] into [participant_embeddings].
+ * Finish-born rows (source path under finish_photos) get [EmbeddingSourceType.FINISH_AUTO].
+ */
+private val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     """
@@ -214,6 +232,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_5_6,
                     MIGRATION_6_7,
                     MIGRATION_7_8,
+                    MIGRATION_8_9,
+                    MIGRATION_9_10,
                 )
                 .fallbackToDestructiveMigration()
                 .build()

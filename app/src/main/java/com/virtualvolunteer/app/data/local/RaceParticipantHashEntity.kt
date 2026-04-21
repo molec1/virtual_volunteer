@@ -40,5 +40,6 @@ data class RaceParticipantHashEntity(
     val firstFinishSeenAtEpochMillis: Long? = null,
     /** Official protocol finish time: max detection in [firstFinishSeenAt, firstFinishSeenAt + 30s]. */
     val protocolFinishTimeEpochMillis: Long? = null,
+    val primaryThumbnailPhotoPath: String? = null,
     val createdAtEpochMillis: Long,
 )
