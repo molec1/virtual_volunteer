@@ -312,7 +312,9 @@ private class ParticipantLookupAdapter(
         private val lifecycleScope: LifecycleCoroutineScope,
     ) : RecyclerView.ViewHolder(binding.root) {
         fun bind(result: ScannedIdentityLookupRank) {
-            binding.root.setOnClickListener { onClick(result) }
+            // Clicks must be on the card: it is clickable/focusable and consumes touches; the outer
+            // LinearLayout root never receives taps.
+            binding.participantCard.setOnClickListener { onClick(result) }
             binding.participantLookupName.text =
                 context.getString(R.string.participant_scan_fmt, result.scanCodeTrimmed)
             val notes = result.notes?.trim()?.takeIf { it.isNotEmpty() }
