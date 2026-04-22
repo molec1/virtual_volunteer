@@ -44,6 +44,14 @@ interface ParticipantHashDao {
     @Query("DELETE FROM race_participant_hashes WHERE id = :id AND raceId = :raceId")
     suspend fun deleteById(id: Long, raceId: String): Int
 
+    @Query(
+        """
+        UPDATE race_participant_hashes SET identityRegistryId = :keeperRegistryId
+        WHERE identityRegistryId = :donorRegistryId
+        """,
+    )
+    suspend fun reassignIdentityRegistryLinks(donorRegistryId: Long, keeperRegistryId: Long): Int
+
     @Query("SELECT COUNT(*) FROM race_participant_hashes WHERE raceId = :raceId")
     suspend fun countForRace(raceId: String): Int
 

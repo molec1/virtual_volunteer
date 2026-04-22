@@ -17,7 +17,7 @@
         android:orientation="vertical"
         android:padding="@dimen/card_padding">
 
-        <ImageView
+        <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/registryThumb"
             android:layout_width="match_parent"
             android:layout_height="120dp"
@@ -25,6 +25,7 @@
             android:contentDescription="@string/participant_thumb_cd"
             android:padding="@dimen/face_thumb_inner_padding"
             android:scaleType="centerCrop"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.VirtualVolunteer.RoundedThumb"
             tools:ignore="ImageContrastCheck" />
 
         <TextView

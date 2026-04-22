@@ -1,15 +1,11 @@
 package com.virtualvolunteer.app.ui.racelist
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.os.Bundle
 import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
@@ -31,14 +27,6 @@ class RaceListFragment : Fragment() {
 
     private var _binding: FragmentRaceListBinding? = null
     private val binding get() = _binding!!
-
-    private val locationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) {
-        lifecycleScope.launch {
-            createRaceAndNavigate()
-        }
-    }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentRaceListBinding.inflate(inflater, container, false)
@@ -72,19 +60,7 @@ class RaceListFragment : Fragment() {
         }
 
         binding.fabNewRace.setOnClickListener {
-            val fine = ContextCompat.checkSelfPermission(
-                requireContext(),
-                Manifest.permission.ACCESS_FINE_LOCATION,
-            ) == PackageManager.PERMISSION_GRANTED
-            val coarse = ContextCompat.checkSelfPermission(
-                requireContext(),
-                Manifest.permission.ACCESS_COARSE_LOCATION,
-            ) == PackageManager.PERMISSION_GRANTED
-            if (fine || coarse) {
-                lifecycleScope.launch { createRaceAndNavigate() }
-            } else {
-                locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-            }
+            lifecycleScope.launch { createRaceAndNavigate() }
         }
     }
 

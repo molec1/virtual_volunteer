@@ -61,6 +61,9 @@ class IdentityRegistryFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                withContext(Dispatchers.IO) {
+                    repo.consolidateAllScanMerges()
+                }
                 repo.observeIdentityRegistry().collect { rows ->
                     adapter.submitList(rows)
                     binding.emptyView.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE

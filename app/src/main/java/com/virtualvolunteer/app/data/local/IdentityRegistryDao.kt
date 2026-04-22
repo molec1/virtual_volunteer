@@ -3,6 +3,7 @@ package com.virtualvolunteer.app.data.local
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -10,6 +11,12 @@ interface IdentityRegistryDao {
 
     @Insert
     suspend fun insert(row: IdentityRegistryEntity): Long
+
+    @Update
+    suspend fun update(row: IdentityRegistryEntity)
+
+    @Query("DELETE FROM identity_registry WHERE id = :id")
+    suspend fun deleteById(id: Long): Int
 
     @Query("SELECT * FROM identity_registry ORDER BY createdAtEpochMillis DESC")
     fun observeAll(): Flow<List<IdentityRegistryEntity>>

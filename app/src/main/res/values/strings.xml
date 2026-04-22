@@ -7,7 +7,6 @@
     <string name="race_detail_section_export">Export</string>
     <string name="race_status_label">Status</string>
     <string name="race_created_label">Created</string>
-    <string name="race_location_label">Location</string>
     <string name="btn_start_race">Start race</string>
     <string name="btn_pre_start_photo">Take pre-start photo(s)</string>
     <string name="btn_take_finish_photo">Take finish photo</string>
@@ -20,8 +19,10 @@
     <string name="export_csv_failed">CSV export failed</string>
     <string name="share_csv_chooser_title">Share CSV</string>
     <string name="timer_label">Elapsed</string>
+    <string name="race_start_time_label">Race start</string>
+    <string name="race_start_time_not_set">Not set</string>
+    <string name="race_start_time_edit_cd">Edit race start time</string>
     <string name="permission_camera_required">Camera permission is required for photos.</string>
-    <string name="permission_location_denied">Location unavailable; race saved without coordinates.</string>
     <string name="export_saved">Export saved</string>
     <string name="export_failed">Export failed</string>
     <string name="race_created_nav_failed">Race created but opening details failed.</string>

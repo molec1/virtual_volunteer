@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import com.virtualvolunteer.app.domain.face.OrientedPhotoBitmap
 import java.io.File
+import java.io.FileOutputStream
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -93,6 +94,20 @@ object PreviewImageLoader {
         } catch (_: OutOfMemoryError) {
             decoded.recycle()
             return null
+        }
+    }
+
+    /**
+     * Writes a small EXIF-corrected JPEG (for main menu race list); recycles the decoded bitmap.
+     */
+    fun writeListThumbnailJpegFromPhotoSource(sourcePath: String, outputJpeg: File, maxSidePx: Int = 256): Boolean {
+        val bmp = loadThumbnailOrientedInset(sourcePath, maxSidePx) ?: return false
+        return try {
+            outputJpeg.parentFile?.mkdirs()
+            FileOutputStream(outputJpeg).use { out -> bmp.compress(Bitmap.CompressFormat.JPEG, 88, out) }
+            true
+        } finally {
+            bmp.recycle()
         }
     }
 }

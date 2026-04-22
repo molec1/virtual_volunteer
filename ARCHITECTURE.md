@@ -12,7 +12,7 @@ Offline-first Android app for **race timing using photos**: capture **start-line
 
 | Concept | Persistence | Role |
 |--------|-------------|------|
-| **Race** | `RaceEntity` | One event: ids, timestamps (created / started / finished), status, GPS, folders, last processed photo path. |
+| **Race** | `RaceEntity` | One event: ids, timestamps (created / started / finished), status, folders, last processed photo path, optional **list** menu preview path (`listThumbnailPath` → `race_list_thumb.jpg` next to `race.xml`). |
 | **Participant** | `RaceParticipantHashEntity` | **One protocol person** per row: thumbnails, scan/name, identity-registry link, **`protocolFinishTimeEpochMillis`** / **`firstFinishSeenAtEpochMillis`**. Legacy columns **`embedding`** / **`embeddingFailed`** remain as a **synced mirror** of the primary stored vector (first row in `participant_embeddings`) for compatibility; the source of truth for face vectors is **`participant_embeddings`**. |
 | **Participant embedding** | `ParticipantEmbeddingEntity` | **Many rows per participant**: comma-separated vector, **`EmbeddingSourceType`** (`START`, `FINISH_AUTO`, `FINISH_MANUAL_LINK`), optional **`sourcePhotoPath`**, **`qualityScore`**, timestamps. Matching uses **all** vectors for that participant (best cosine wins per participant). |
 | **FinishDetection** | `FinishDetectionEntity` | One row per **matched** finish-face event: participant, race, **detectedAt**, source photo path, optional cosine score. Many rows per participant are allowed. |
@@ -28,6 +28,7 @@ Offline-first Android app for **race timing using photos**: capture **start-line
 - **Cosine matching**: for each candidate finish embedding, compute similarity against **every** stored vector of each participant; that participant’s score is the **maximum** cosine among its vectors; the winning participant is the one with the highest score above threshold (same threshold as before).
 - **Automatic finish match**: after **`recordFinishDetection`**, append the finish-face embedding with **`FINISH_AUTO`** when it is not already stored exactly (deduped by identical comma-separated string).
 - **Manual merge via scan**: if two protocol rows end up with the **same trimmed scanned payload**, **`RaceRepository`** merges **donor → keeper** (the participant row whose scan UI was just updated): reassign **`finish_detections`** and **`participant_embeddings`** to the keeper, merge optional fields, delete the donor row, then recompute protocol finish for the keeper. This avoids parallel identities when the operator assigns the same bib/code to the “correct” participant.
+- **Duplicate scan consolidation (registry + protocol)**: multiple **`identity_registry`** rows with the same trimmed scan code are merged (**smallest registry id** is keeper; participant rows pointing at donors are repointed; notes/thumbnail/embedding merged). Separately, within each race, protocol rows that share the **same effective scan** as the dashboard (`COALESCE` race `scannedPayload` with linked registry’s scan) are merged (**smallest participant id** keeper). **`consolidateScanMergesForRace`** / **`consolidateAllScanMerges`** run after barcode scan / face-lookup assign, on race detail **onResume**, and when opening the **Scanned on this device** list—so duplicate codes collapse without relying on a single code path.
 
 ---
 
@@ -89,12 +90,11 @@ Protocol XML and ordering use **official** finish time ascending. Protocol XML s
 
 | Area | Packages / locations | Responsibility |
 |------|----------------------|----------------|
-| **UI** | `ui.racelist`, `ui.racedetail`, `ui.identity`, `ui.camera`, `ui.scan`, `ui.util` | Race list (**first pre-start** thumb per race), race detail (participant list with **row face-lookup** → pick a device scan code ranked by face match; **assigns** that code and `identity_registry` link to the row like **barcode scan**—`RaceRepository.assignParticipantToScannedIdentityFromFaceLookup` (scan + registry + `registryInfo`, thumbnail sync, then same duplicate-scan merge as `updateParticipantScan`); lookup lists **all device scan codes** with **max cosine** over historical vectors (registry + linked races’ `participant_embeddings`, donor row excluded from pool), **grouped by trimmed code**; **race-local photo sheet** excludes **`faces/`** crops; manual finish picks from **`finish_photos`** list), **identity registry** (scanned-only list + thumbnail backfill), **CameraX** multi-shot, barcode capture. |
+| **UI** | `ui.racelist`, `ui.racedetail`, `ui.identity`, `ui.camera`, `ui.scan`, `ui.util` | Race list (rounded **first pre-start** preview from stored `race_list_thumb.jpg` when present; `RaceRepository.ensureRaceListThumbnail`), race detail (**race start** time shown and editable via date/time pickers → `RaceRepository.updateRaceStartedAtEpochMillis`; timer unchanged), participant list with **row face-lookup** → pick a device scan code ranked by face match; **assigns** that code and `identity_registry` link to the row like **barcode scan**—`RaceRepository.assignParticipantToScannedIdentityFromFaceLookup` (scan + registry + `registryInfo`, thumbnail sync, then same duplicate-scan merge as `updateParticipantScan`); lookup lists **all device scan codes** with **max cosine** over historical vectors (registry + linked races’ `participant_embeddings`, donor row excluded from pool), **grouped by trimmed code**; **race-local photo sheet** excludes **`faces/`** crops; manual finish picks from **`finish_photos`** list), **identity registry** (scanned-only list + thumbnail backfill), **CameraX** multi-shot, barcode capture. |
 | **Data** | `data.local` (Room), `data.repository`, `data.files`, `data.xml`, `data.model` | Persistence, `RaceRepository`, filesystem layout, mirrored XML. |
 | **Domain** | `domain` (`RacePhotoProcessor`, `face`, `matching`, `time`, `identity`, `participants`, `debug`) | Orchestration, ML/embeddings, **multi-embedding match** (`ParticipantEmbeddingSet`, `FaceMatchEngine`), protocols — **no Android UI**. |
 | **Export** | `export` | ZIP/CSV/version strings. |
 | **App** | `VirtualVolunteerApp`, `MainActivity` | DI-style singletons, pipeline debug buffer. |
-| **Other** | `location` | Optional GPS at race creation. |
 
 There is no separate `services/` module; cross-cutting behavior lives in the **repository**, **processor**, and **Application** pipeline log.
 
@@ -120,7 +120,7 @@ There is no separate `services/` module; cross-cutting behavior lives in the **r
 
 - **Import start/finish folders** — Same processors as camera; timestamps from **`PhotoTimestampResolver`** (EXIF-first).
 - **Build test protocol** — Walks finish folder, runs finish pipeline per file, appends trace to **`protocol_test_debug.log`** under the race directory.
-- **Race gun helper** — `applyOfflineRaceStartFromStartPhotos` can set start time from start-photo EXIF max (offline workflows).
+- **Race gun helper** — `applyOfflineRaceStartFromStartPhotos` can set start time from start-photo EXIF max (offline workflows). After each **`ingestStartPhoto`** (camera or import), the repository runs the same helper so **`races.startedAtEpochMillis`** stays aligned with the start-photo folder.
 
 ---
 

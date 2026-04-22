@@ -31,8 +31,6 @@ object RaceXmlIo {
             writer.append(" createdAt=\"").append(snapshot.createdAtEpochMillis.toString()).append("\"")
             writer.append(" startedAt=\"").append(snapshot.startedAtEpochMillis?.toString() ?: "").append("\"")
             writer.append(" finishedAt=\"").append(snapshot.finishedAtEpochMillis?.toString() ?: "").append("\"")
-            writer.append(" latitude=\"").append(snapshot.latitude?.toString() ?: "").append("\"")
-            writer.append(" longitude=\"").append(snapshot.longitude?.toString() ?: "").append("\"")
             writer.append(" status=\"").append(snapshot.status.name).append("\"")
             writer.append("></race>\n")
             writer.flush()
@@ -52,8 +50,6 @@ object RaceXmlIo {
                 val created = parser.getAttributeValue(ns, "createdAt")?.toLongOrNull() ?: return null
                 val started = parser.getAttributeValue(ns, "startedAt")?.toLongOrNull()
                 val finished = parser.getAttributeValue(ns, "finishedAt")?.toLongOrNull()
-                val lat = parser.getAttributeValue(ns, "latitude")?.toDoubleOrNull()
-                val lon = parser.getAttributeValue(ns, "longitude")?.toDoubleOrNull()
                 val statusName = parser.getAttributeValue(ns, "status")
                 val status = statusName?.let {
                     try {
@@ -67,8 +63,6 @@ object RaceXmlIo {
                     createdAtEpochMillis = created,
                     startedAtEpochMillis = started,
                     finishedAtEpochMillis = finished,
-                    latitude = lat,
-                    longitude = lon,
                     status = status,
                 )
             }

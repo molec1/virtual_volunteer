@@ -2,6 +2,8 @@ package com.virtualvolunteer.app.ui.racedetail
 
 import android.Manifest
 import android.app.Activity
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -19,7 +21,6 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.FileProvider
 import androidx.core.content.ContextCompat
 import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
@@ -31,13 +32,11 @@ import androidx.navigation.fragment.findNavController
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.VirtualVolunteerApp
-import com.virtualvolunteer.app.data.files.RacePaths
 import com.virtualvolunteer.app.data.files.UriFileCopy
 import com.virtualvolunteer.app.data.local.RaceEntity
 import com.virtualvolunteer.app.data.model.RaceStatus
 import com.virtualvolunteer.app.databinding.FragmentRaceDetailBinding
 import com.virtualvolunteer.app.domain.RacePhotoProcessor
-import com.virtualvolunteer.app.domain.debug.FinishPhotoDebugReport
 import com.virtualvolunteer.app.domain.face.MlKitFaceDetector
 import com.virtualvolunteer.app.domain.face.TfliteFaceEmbedder
 import com.virtualvolunteer.app.domain.matching.FaceMatchEngine
@@ -45,7 +44,6 @@ import com.virtualvolunteer.app.domain.participants.RoomRaceParticipantPool
 import com.virtualvolunteer.app.export.RaceZipExporter
 import com.virtualvolunteer.app.ui.camera.CameraCaptureFragment
 import com.virtualvolunteer.app.ui.scan.BarcodeScanActivity
-import com.virtualvolunteer.app.ui.util.PreviewImageLoader
 import com.virtualvolunteer.app.ui.util.RaceUiFormatter
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +52,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.Calendar
 
 /**
  * Race control: timer, pre-start / finish photos, offline test tools, export.
@@ -74,6 +73,7 @@ class RaceDetailFragment : Fragment() {
     private lateinit var faceDetector: MlKitFaceDetector
     private lateinit var faceEmbedder: TfliteFaceEmbedder
     private lateinit var photoProcessor: RacePhotoProcessor
+    private lateinit var photoImports: RaceDetailPhotoBulkImporter
 
     private lateinit var participantAdapter: ParticipantDashboardAdapter
 
@@ -131,22 +131,7 @@ class RaceDetailFragment : Fragment() {
     ) { uris ->
         if (uris.isNullOrEmpty()) return@registerForActivityResult
         lifecycleScope.launch(Dispatchers.IO) {
-            val ctx = requireContext().applicationContext
-            val dir = RacePaths.startPhotosDir(ctx, raceId)
-            var files = 0
-            var hashes = 0
-            for (uri in uris) {
-                try {
-                    val name = UriFileCopy.displayName(ctx, uri)
-                    val dest = RacePhotoProcessor.uniqueImportedFile(dir, name)
-                    UriFileCopy.copyToFile(ctx, uri, dest)
-                    files++
-                    val result = photoProcessor.ingestStartPhoto(raceId, dest)
-                    result.onSuccess { count -> hashes += count }
-                } catch (t: Throwable) {
-                    Log.w(TAG, "import start photo failed", t)
-                }
-            }
+            photoImports.importStartPhotoUris(uris)
             withContext(Dispatchers.Main) {
                 // Removed Toast confirmation
             }
@@ -158,39 +143,7 @@ class RaceDetailFragment : Fragment() {
     ) { uris ->
         if (uris.isNullOrEmpty()) return@registerForActivityResult
         lifecycleScope.launch(Dispatchers.IO) {
-            val ctx = requireContext().applicationContext
-            val app = ctx as VirtualVolunteerApp
-            val repo = app.raceRepository
-            val dir = RacePaths.finishPhotosDir(ctx, raceId)
-            var copied = 0
-            var finishRowsAdded = 0
-            var ingestFailures = 0
-            var lastDest: File? = null
-            app.appendPipelineLog("—— importFinishPhotos (${uris.size} uri(s)) ——")
-            for (uri in uris) {
-                try {
-                    val name = UriFileCopy.displayName(ctx, uri)
-                    val dest = RacePhotoProcessor.uniqueImportedFile(dir, name)
-                    UriFileCopy.copyToFile(ctx, uri, dest)
-                    copied++
-                    lastDest = dest
-                    val ingest = photoProcessor.ingestFinishPhoto(raceId, dest)
-                    ingest.onSuccess { n -> finishRowsAdded += n }
-                    ingest.onFailure {
-                        ingestFailures++
-                        Log.w(TAG, "ingestFinishPhoto failed for ${dest.name}", it)
-                        app.appendPipelineLog("IMPORT_INGEST_FAILED file=${dest.name} err=${it.message}")
-                    }
-                } catch (t: Throwable) {
-                    Log.w(TAG, "import finish photo failed", t)
-                    ingestFailures++
-                    app.appendPipelineLog("IMPORT_COPY_FAILED err=${t.message}")
-                }
-            }
-            lastDest?.let { repo.updateLastProcessedPhoto(raceId, it.absolutePath) }
-            app.appendPipelineLog(
-                "importFinishPhotos done copied=$copied finishRowsAdded=$finishRowsAdded failures=$ingestFailures",
-            )
+            photoImports.importFinishPhotoUris(uris)
             withContext(Dispatchers.Main) {
                 // Removed Toast confirmation
             }
@@ -208,7 +161,7 @@ class RaceDetailFragment : Fragment() {
                 UriFileCopy.copyToFile(ctx, uri, tmp)
                 val report = photoProcessor.analyzeFinishPhotoDebug(raceId, tmp)
                 val text = report.fold(
-                    onSuccess = { formatFinishDebugReport(it) },
+                    onSuccess = { formatFinishPhotoDebugReport(it) },
                     onFailure = { "Analysis failed: ${it.message ?: "unknown"}" },
                 )
                 Log.i(TAG, text)
@@ -240,7 +193,11 @@ class RaceDetailFragment : Fragment() {
             pool = RoomRaceParticipantPool(repo),
             appContext = requireActivity().applicationContext,
         )
-
+        photoImports = RaceDetailPhotoBulkImporter(
+            requireActivity().application as VirtualVolunteerApp,
+            raceId,
+            photoProcessor,
+        )
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -289,14 +246,12 @@ class RaceDetailFragment : Fragment() {
                     ) { rows, finishN -> rows to finishN }
                         .collect { (rows, finishN) ->
                             participantAdapter.submitList(rows)
-                            val showProtocol = rows.isNotEmpty() || finishN > 0
-                            binding.dashboardParticipantsTitle.visibility =
-                                if (showProtocol && participantsExpanded) View.VISIBLE else View.GONE
-                            binding.participantsRecycler.visibility =
-                                if (showProtocol && participantsExpanded) View.VISIBLE else View.GONE
-                            binding.scrollContent.post {
-                                binding.participantsRecycler.requestLayout()
-                            }
+                            RaceDetailParticipantSectionUi.applyParticipantSectionVisibility(
+                                binding,
+                                participantRowCount = rows.size,
+                                finishRecordCount = finishN,
+                                participantsExpanded = participantsExpanded,
+                            )
                         }
                 }
             }
@@ -323,6 +278,8 @@ class RaceDetailFragment : Fragment() {
 
         binding.btnAddManualFinish.setOnClickListener { openManualFinishBottomSheet() }
 
+        binding.btnEditRaceStartTime.setOnClickListener { showEditRaceStartTimeDialog() }
+
         // Collapsible section headers
         binding.offlineTestHeaderLayout.setOnClickListener { toggleOfflineTestExpansion() }
         binding.participantsHeaderLayout.setOnClickListener { toggleParticipantsExpansion() }
@@ -333,18 +290,17 @@ class RaceDetailFragment : Fragment() {
         super.onResume()
         val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
         viewLifecycleOwner.lifecycleScope.launch {
+            withContext(Dispatchers.IO) { repo.consolidateScanMergesForRace(raceId) }
             val rows = withContext(Dispatchers.IO) { repo.getParticipantDashboardUi(raceId) }
             val finishN = withContext(Dispatchers.IO) { repo.finishRecordCount(raceId) }
             if (_binding == null) return@launch
             participantAdapter.submitList(rows)
-            val showProtocol = rows.isNotEmpty() || finishN > 0
-            binding.dashboardParticipantsTitle.visibility =
-                if (showProtocol && participantsExpanded) View.VISIBLE else View.GONE
-            binding.participantsRecycler.visibility =
-                if (showProtocol && participantsExpanded) View.VISIBLE else View.GONE
-            binding.scrollContent.post {
-                binding.participantsRecycler.requestLayout()
-            }
+            RaceDetailParticipantSectionUi.applyParticipantSectionVisibility(
+                binding,
+                participantRowCount = rows.size,
+                finishRecordCount = finishN,
+                participantsExpanded = participantsExpanded,
+            )
         }
     }
 
@@ -354,15 +310,14 @@ class RaceDetailFragment : Fragment() {
             RaceUiFormatter.formatDate(race.createdAtEpochMillis) + " " +
             RaceUiFormatter.formatTime(race.createdAtEpochMillis)
 
-        val lat = race.latitude
-        val lon = race.longitude
-        binding.locationText.text = if (lat != null && lon != null) {
-            getString(R.string.race_location_label) + ": %.5f, %.5f".format(lat, lon)
-        } else {
-            getString(R.string.race_location_label) + ": unavailable"
-        }
-
         binding.statusText.text = getString(R.string.race_status_label) + ": " + RaceUiFormatter.formatStatus(race.status)
+
+        val startMs = race.startedAtEpochMillis
+        binding.raceStartTimeValue.text = if (startMs != null) {
+            RaceUiFormatter.formatDateTime(startMs)
+        } else {
+            getString(R.string.race_start_time_not_set)
+        }
 
         val started = race.startedAtEpochMillis != null
         binding.timerRow.visibility = if (started) View.VISIBLE else View.GONE
@@ -441,6 +396,41 @@ class RaceDetailFragment : Fragment() {
         }
     }
 
+    private fun showEditRaceStartTimeDialog() {
+        val race = latestRace ?: return
+        val cal = Calendar.getInstance()
+        race.startedAtEpochMillis?.let { cal.timeInMillis = it }
+
+        val ctx = requireContext()
+        DatePickerDialog(
+            ctx,
+            { _, y, m, d ->
+                cal.set(Calendar.YEAR, y)
+                cal.set(Calendar.MONTH, m)
+                cal.set(Calendar.DAY_OF_MONTH, d)
+                TimePickerDialog(
+                    ctx,
+                    { _, h, min ->
+                        cal.set(Calendar.HOUR_OF_DAY, h)
+                        cal.set(Calendar.MINUTE, min)
+                        cal.set(Calendar.SECOND, 0)
+                        cal.set(Calendar.MILLISECOND, 0)
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            (requireActivity().application as VirtualVolunteerApp).raceRepository
+                                .updateRaceStartedAtEpochMillis(raceId, cal.timeInMillis)
+                        }
+                    },
+                    cal.get(Calendar.HOUR_OF_DAY),
+                    cal.get(Calendar.MINUTE),
+                    true,
+                ).show()
+            },
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH),
+            cal.get(Calendar.DAY_OF_MONTH),
+        ).show()
+    }
+
     fun onPreStartPhotoClicked() {
         findNavController().navigate(
             R.id.action_race_detail_to_cameraCaptureFragment,
@@ -504,7 +494,7 @@ class RaceDetailFragment : Fragment() {
                     lifecycleScope.launch(Dispatchers.IO) {
                         repo.markExported(raceId)
                     }
-                    shareZip(zip)
+                    RaceDetailShareHelper.shareZip(requireContext(), zip)
                     Toast.makeText(requireContext(), R.string.export_saved, Toast.LENGTH_SHORT).show()
                 }.onFailure {
                     Toast.makeText(requireContext(), R.string.export_failed, Toast.LENGTH_SHORT).show()
@@ -519,7 +509,7 @@ class RaceDetailFragment : Fragment() {
             val result = repo.exportTimesCsv(raceId)
             withContext(Dispatchers.Main) {
                 result.onSuccess { file ->
-                    shareCsv(file, getString(R.string.export_csv_times_saved))
+                    RaceDetailShareHelper.shareCsv(requireContext(), file, getString(R.string.export_csv_times_saved))
                 }.onFailure {
                     Toast.makeText(requireContext(), R.string.export_csv_failed, Toast.LENGTH_SHORT).show()
                 }
@@ -533,27 +523,12 @@ class RaceDetailFragment : Fragment() {
             val result = repo.exportParticipantsCsv(raceId)
             withContext(Dispatchers.Main) {
                 result.onSuccess { file ->
-                    shareCsv(file, getString(R.string.export_csv_participants_saved))
+                    RaceDetailShareHelper.shareCsv(requireContext(), file, getString(R.string.export_csv_participants_saved))
                 }.onFailure {
                     Toast.makeText(requireContext(), R.string.export_csv_failed, Toast.LENGTH_SHORT).show()
                 }
             }
         }
-    }
-
-    private fun shareCsv(file: File, toastLabel: String) {
-        Toast.makeText(requireContext(), toastLabel, Toast.LENGTH_SHORT).show()
-        val uri = FileProvider.getUriForFile(
-            requireContext(),
-            "${requireContext().packageName}.fileprovider",
-            file,
-        )
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/csv"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        startActivity(Intent.createChooser(intent, getString(R.string.share_csv_chooser_title)))
     }
 
     private fun showParticipantNameEditor(participantId: Long, currentName: String?) {
@@ -574,20 +549,6 @@ class RaceDetailFragment : Fragment() {
                 }
             }
             .show()
-    }
-
-    private fun shareZip(zip: File) {
-        val uri = FileProvider.getUriForFile(
-            requireContext(),
-            "${requireContext().packageName}.fileprovider",
-            zip,
-        )
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/zip"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        startActivity(Intent.createChooser(intent, "Share race export"))
     }
 
     private fun runWithCameraPermission(action: () -> Unit) {
@@ -658,29 +619,6 @@ class RaceDetailFragment : Fragment() {
             dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)?.setTextColor(Color.RED)
         }
         dialog.show()
-    }
-
-    private fun formatFinishDebugReport(report: FinishPhotoDebugReport): String {
-        val sb = StringBuilder()
-        sb.appendLine("file=${report.photoPath}")
-        sb.appendLine("detectedFaces=${report.detectedFaceCount}")
-        sb.appendLine("---")
-        for (face in report.faces) {
-            sb.appendLine("Face #${face.faceIndex}")
-            sb.appendLine("  embeddingPreview=${face.embeddingPreview}")
-            sb.appendLine(
-                "  nearestParticipantId=${face.nearestParticipantId} " +
-                    "nearestStoredEmbeddingPreview=${face.nearestParticipantEmbeddingPreview}",
-            )
-            sb.appendLine(
-                "  cosineSimilarity=${face.cosineSimilarity} " +
-                    "threshold=${face.cosineThreshold} passesThreshold=${face.passesThreshold}",
-            )
-            sb.appendLine("  participantAlreadyFinished=${face.participantAlreadyFinished}")
-            sb.appendLine("  wouldRecordAsNewFinish=${face.wouldRecordAsNewFinish}")
-            sb.appendLine("---")
-        }
-        return sb.toString().trimEnd()
     }
 
     private fun showScrollableDialog(title: String, message: String) {

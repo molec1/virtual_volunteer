@@ -1,8 +1,10 @@
 package com.virtualvolunteer.app.ui.racelist
 
+import android.graphics.BitmapFactory
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import java.io.File
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -56,9 +58,14 @@ class RaceListAdapter(
 
             val raceId = item.id
             val app = binding.root.context.applicationContext as VirtualVolunteerApp
+            val repo = app.raceRepository
             imageLoadScope.launch(Dispatchers.IO) {
-                val path = app.raceRepository.getFirstStartPhotoPathForRace(raceId)
-                val bmp = path?.let { PreviewImageLoader.loadThumbnailOrientedInset(it, maxSidePx = 256) }
+                val quick = item.listThumbnailPath?.trim()?.takeIf { it.isNotEmpty() && File(it).exists() }
+                val path = quick ?: repo.ensureRaceListThumbnail(raceId)
+                val bmp = path?.let { p ->
+                    BitmapFactory.decodeFile(p)
+                        ?: PreviewImageLoader.loadThumbnailOrientedInset(p, maxSidePx = 256)
+                }
                 withContext(Dispatchers.Main) {
                     if (gen != bindGeneration) return@withContext
                     if (bmp != null) {

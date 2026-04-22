@@ -18,6 +18,10 @@ object RacePaths {
     fun raceXml(context: Context, raceId: String): File =
         File(raceFolder(context, raceId), "race.xml")
 
+    /** Pre-resized list preview (~256px) for the main race list; not part of export. */
+    fun raceListThumbnailFile(context: Context, raceId: String): File =
+        File(raceFolder(context, raceId), "race_list_thumb.jpg")
+
     fun protocolXml(context: Context, raceId: String): File =
         File(raceFolder(context, raceId), "protocol.xml")
 

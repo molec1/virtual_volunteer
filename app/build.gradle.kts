@@ -73,8 +73,6 @@ dependencies {
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
 
-    implementation("com.google.android.gms:play-services-location:21.3.0")
-
     implementation("com.google.mlkit:face-detection:16.1.7")
 
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")

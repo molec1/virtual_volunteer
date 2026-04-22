@@ -14,7 +14,7 @@
         android:orientation="horizontal"
         android:padding="@dimen/card_padding">
 
-        <ImageView
+        <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/raceStartThumb"
             android:layout_width="64dp"
             android:layout_height="64dp"
@@ -25,6 +25,7 @@
             android:padding="@dimen/face_thumb_inner_padding"
             android:scaleType="centerCrop"
             android:visibility="gone"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.VirtualVolunteer.RoundedThumb"
             tools:ignore="ImageContrastCheck"
             tools:visibility="visible" />
 

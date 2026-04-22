@@ -10,7 +10,5 @@ data class RaceXmlSnapshot(
     val createdAtEpochMillis: Long,
     val startedAtEpochMillis: Long?,
     val finishedAtEpochMillis: Long?,
-    val latitude: Double?,
-    val longitude: Double?,
     val status: RaceStatus,
 )

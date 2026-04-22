@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FinishDetectionEntity::class,
         IdentityRegistryEntity::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -31,6 +31,8 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         private const val DB_NAME = "virtual_volunteer.db"
+
+        private const val TAG = "AppDatabase"
 
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -136,33 +138,11 @@ abstract class AppDatabase : RoomDatabase() {
                     """.trimIndent(),
                 )
 
-        db.execSQL("DROP TABLE finish_records")
-    }
-}
+                db.execSQL("DROP TABLE finish_records")
+            }
+        }
 
-/**
- * Adds [RaceParticipantHashEntity.primaryThumbnailPhotoPath] column.
- */
-private val MIGRATION_8_9 = object : Migration(8, 9) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE race_participant_hashes ADD COLUMN primaryThumbnailPhotoPath TEXT")
-    }
-}
-
-/**
- * Adds [IdentityRegistryEntity.primaryThumbnailPhotoPath] column.
- */
-private val MIGRATION_9_10 = object : Migration(9, 10) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE identity_registry ADD COLUMN primaryThumbnailPhotoPath TEXT")
-    }
-}
-
-/**
- * Splits legacy single-vector column on [RaceParticipantHashEntity] into [participant_embeddings].
- * Finish-born rows (source path under finish_photos) get [EmbeddingSourceType.FINISH_AUTO].
- */
-private val MIGRATION_7_8 = object : Migration(7, 8) {
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     """
@@ -221,7 +201,50 @@ private val MIGRATION_7_8 = object : Migration(7, 8) {
             }
         }
 
-        private const val TAG = "AppDatabase"
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE race_participant_hashes ADD COLUMN primaryThumbnailPhotoPath TEXT")
+            }
+        }
+
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE identity_registry ADD COLUMN primaryThumbnailPhotoPath TEXT")
+            }
+        }
+
+        /**
+         * Drops [RaceEntity] latitude / longitude; adds [RaceEntity.listThumbnailPath] for the main-menu preview cache.
+         */
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE `races_new` (
+                        `id` TEXT NOT NULL,
+                        `createdAtEpochMillis` INTEGER NOT NULL,
+                        `startedAtEpochMillis` INTEGER,
+                        `finishedAtEpochMillis` INTEGER,
+                        `status` TEXT NOT NULL,
+                        `folderPath` TEXT NOT NULL,
+                        `lastPhotoPath` TEXT,
+                        `listThumbnailPath` TEXT,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO races_new (id, createdAtEpochMillis, startedAtEpochMillis, finishedAtEpochMillis, status, folderPath, lastPhotoPath, listThumbnailPath)
+                    SELECT id, createdAtEpochMillis, startedAtEpochMillis, finishedAtEpochMillis, status, folderPath, lastPhotoPath, NULL
+                    FROM races
+                    """.trimIndent(),
+                )
+                db.execSQL("DROP TABLE races")
+                db.execSQL("ALTER TABLE races_new RENAME TO races")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_races_createdAtEpochMillis` ON `races`(`createdAtEpochMillis`)")
+            }
+        }
 
         fun getInstance(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, DB_NAME)
@@ -234,6 +257,7 @@ private val MIGRATION_7_8 = object : Migration(7, 8) {
                     MIGRATION_7_8,
                     MIGRATION_8_9,
                     MIGRATION_9_10,
+                    MIGRATION_10_11,
                 )
                 .fallbackToDestructiveMigration()
                 .build()

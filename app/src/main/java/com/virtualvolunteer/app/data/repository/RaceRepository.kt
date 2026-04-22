@@ -1,33 +1,23 @@
 package com.virtualvolunteer.app.data.repository
 
 import android.content.Context
-import android.util.Log
 import com.virtualvolunteer.app.data.files.RacePaths
 import com.virtualvolunteer.app.data.local.EmbeddingSourceType
 import com.virtualvolunteer.app.data.local.FinishDetectionDao
-import com.virtualvolunteer.app.data.local.FinishDetectionEntity
 import com.virtualvolunteer.app.data.local.IdentityRegistryDao
 import com.virtualvolunteer.app.data.local.IdentityRegistryEntity
-import com.virtualvolunteer.app.data.local.ParticipantDashboardDbRow
 import com.virtualvolunteer.app.data.local.ParticipantDashboardRow
 import com.virtualvolunteer.app.data.local.ParticipantEmbeddingDao
-import com.virtualvolunteer.app.data.local.ParticipantEmbeddingEntity
 import com.virtualvolunteer.app.data.local.ParticipantHashDao
 import com.virtualvolunteer.app.data.local.RaceDao
 import com.virtualvolunteer.app.data.local.RaceEntity
 import com.virtualvolunteer.app.data.local.RaceParticipantHashEntity
 import com.virtualvolunteer.app.data.model.RaceStatus
-import com.virtualvolunteer.app.data.xml.ProtocolFinishRow
 import com.virtualvolunteer.app.data.xml.ProtocolXmlIo
-import com.virtualvolunteer.app.data.xml.RaceXmlIo
-import com.virtualvolunteer.app.data.xml.RaceXmlSnapshot
-import com.virtualvolunteer.app.domain.face.EmbeddingMath
 import com.virtualvolunteer.app.domain.identity.GlobalIdentityResolution
-import com.virtualvolunteer.app.domain.matching.FaceMatchEngine
 import com.virtualvolunteer.app.domain.matching.ParticipantEmbeddingSet
 import com.virtualvolunteer.app.domain.time.PhotoTimestampResolver
 import com.virtualvolunteer.app.export.RaceCsvExport
-import com.virtualvolunteer.app.location.LocationCapture
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.io.File
@@ -62,6 +52,9 @@ data class RecordFinishDetectionOutcome(
 
 /**
  * Local races repository: Room metadata + mirrored XML + folder layout.
+ *
+ * Still large after extracting merge/protocol/thumbnail/identity helpers; further splits would
+ * separate read models (dashboard, photo lists) from write paths when that stays clear.
  */
 class RaceRepository(
     private val appContext: Context,
@@ -79,15 +72,59 @@ class RaceRepository(
         private const val TAG = "RaceRepository"
     }
 
+    private val raceXml = RaceXmlWriter(appContext)
+    private val thumbnails = RaceListThumbnailHelper(appContext, raceDao)
+    private val protocolFinish = RaceProtocolFinishSync(
+        appContext,
+        participantHashDao,
+        participantEmbeddingDao,
+        finishDetectionDao,
+        FIRST_FINISH_SERIES_WINDOW_MS,
+    )
+    private val identityHelper = IdentityAssignmentHelper(
+        identityRegistryDao,
+        participantHashDao,
+        participantEmbeddingDao,
+    )
+    private val embeddingWriter = RaceParticipantEmbeddingWriter(
+        participantHashDao,
+        participantEmbeddingDao,
+        identityRegistryDao,
+    )
+    private val finishRecorder = RaceFinishDetectionRecorder(
+        participantHashDao = participantHashDao,
+        finishDetectionDao = finishDetectionDao,
+        protocolFinish = protocolFinish,
+        embeddingWriter = embeddingWriter,
+        firstFinishSeriesWindowMs = FIRST_FINISH_SERIES_WINDOW_MS,
+        logTag = TAG,
+    )
+    private val participantMediaPaths = RaceParticipantMediaPaths(
+        appContext,
+        participantHashDao,
+        finishDetectionDao,
+    )
+    private val scanMerge = ParticipantScanMergeCoordinator(
+        raceDao = raceDao,
+        participantHashDao = participantHashDao,
+        finishDetectionDao = finishDetectionDao,
+        participantEmbeddingDao = participantEmbeddingDao,
+        identityRegistryDao = identityRegistryDao,
+        logTag = TAG,
+        syncParticipantPrimaryEmbedding = { embeddingWriter.syncParticipantPrimaryEmbeddingField(it) },
+        recomputeProtocolFinish = { r, id -> protocolFinish.recomputeProtocolFinishForParticipant(r, id) },
+        refreshProtocolXml = { protocolFinish.refreshProtocolXml(it) },
+    )
+
     fun observeAllRaces(): Flow<List<RaceEntity>> = raceDao.observeAllRaces()
 
     fun observeRace(raceId: String): Flow<RaceEntity?> = raceDao.observeRace(raceId)
 
     fun observeParticipantDashboard(raceId: String): Flow<List<ParticipantDashboardRow>> =
-        participantHashDao.observeParticipantDashboardRows(raceId).map { assignFinishRanks(it) }
+        participantHashDao.observeParticipantDashboardRows(raceId).map { RaceDashboardFinishRanks.assignFinishRanks(it) }
 
     suspend fun getParticipantDashboardUi(raceId: String): List<ParticipantDashboardRow> =
-        assignFinishRanks(participantHashDao.getParticipantDashboardSnapshot(raceId))
+        RaceDashboardFinishRanks.assignFinishRanks(participantHashDao.getParticipantDashboardSnapshot(raceId))
 
     fun observeFinishRecordCount(raceId: String): Flow<Int> =
         finishDetectionDao.observeCountForRace(raceId)
@@ -101,21 +138,7 @@ class RaceRepository(
      * sets it from the oldest linked race participant’s first existing face or primary thumbnail path.
      */
     suspend fun ensureIdentityRegistryThumbnailsFromLinkedParticipants(rows: List<IdentityRegistryEntity>) {
-        for (row in rows) {
-            val cur = row.primaryThumbnailPhotoPath?.trim().orEmpty()
-            if (cur.isNotBlank() && File(cur).exists()) continue
-
-            val hashes = participantHashDao.listHashesForIdentityRegistry(row.id).asReversed()
-            val picked = hashes.firstNotNullOfOrNull { h ->
-                sequenceOf(h.faceThumbnailPath, h.primaryThumbnailPhotoPath)
-                    .firstOrNull { p ->
-                        val t = p?.trim().orEmpty()
-                        t.isNotBlank() && File(t).exists()
-                    }?.trim()
-            } ?: continue
-
-            identityRegistryDao.updatePrimaryThumbnailPath(row.id, picked)
-        }
+        identityHelper.ensureIdentityRegistryThumbnailsFromLinkedParticipants(rows)
     }
 
     /**
@@ -130,77 +153,8 @@ class RaceRepository(
     suspend fun rankScannedOnDeviceIdentitiesByCosine(
         queryEmbeddings: List<FloatArray>,
         excludeParticipantIdForHistoricalPool: Long? = null,
-    ): List<ScannedIdentityLookupRank> {
-        val queries = queryEmbeddings.filter { it.isNotEmpty() }
-        if (queries.isEmpty()) return emptyList()
-
-        val byCode = identityRegistryDao.listAll()
-            .mapNotNull { ir ->
-                val code = ir.scannedPayload?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                code to ir
-            }
-            .groupBy({ it.first }, { it.second })
-
-        val ranked = ArrayList<ScannedIdentityLookupRank>(byCode.size)
-        for ((code, irs) in byCode) {
-            val registryIds = irs.map { it.id }.toSet()
-            val vectors = ArrayList<FloatArray>()
-            for (ir in irs) {
-                val rv = EmbeddingMath.parseCommaSeparated(ir.embedding)
-                if (rv.isNotEmpty()) vectors.add(rv)
-            }
-            for (rid in registryIds) {
-                for (h in participantHashDao.listHashesForIdentityRegistry(rid)) {
-                    if (excludeParticipantIdForHistoricalPool != null && h.id == excludeParticipantIdForHistoricalPool) {
-                        continue
-                    }
-                    val fromTable = participantEmbeddingDao.listEmbeddingStringsForParticipant(h.id)
-                        .mapNotNull { s ->
-                            EmbeddingMath.parseCommaSeparated(s).takeIf { v -> v.isNotEmpty() }
-                        }
-                    if (fromTable.isNotEmpty()) {
-                        vectors.addAll(fromTable)
-                    } else if (!h.embeddingFailed && h.embedding.isNotBlank()) {
-                        val lv = EmbeddingMath.parseCommaSeparated(h.embedding)
-                        if (lv.isNotEmpty()) vectors.add(lv)
-                    }
-                }
-            }
-            if (vectors.isEmpty()) continue
-
-            var best = -1f
-            var anyComparable = false
-            for (q in queries) {
-                for (h in vectors) {
-                    if (h.size != q.size) continue
-                    anyComparable = true
-                    val c = EmbeddingMath.cosineSimilarity(q, h)
-                    if (c > best) best = c
-                }
-            }
-            if (!anyComparable) continue
-
-            val thumb = irs.firstNotNullOfOrNull { r ->
-                r.primaryThumbnailPhotoPath?.trim()?.takeIf { t ->
-                    t.isNotBlank() && File(t).exists()
-                }
-            }
-            val notes = irs.firstNotNullOfOrNull { r ->
-                r.notes?.trim()?.takeIf { it.isNotEmpty() }
-            }
-            ranked.add(
-                ScannedIdentityLookupRank(
-                    scanCodeTrimmed = code,
-                    registryIds = registryIds,
-                    maxCosineSimilarity = best,
-                    registryThumbnailPath = thumb,
-                    notes = notes,
-                ),
-            )
-        }
-        ranked.sortByDescending { it.maxCosineSimilarity }
-        return ranked
-    }
+    ): List<ScannedIdentityLookupRank> =
+        identityHelper.rankScannedOnDeviceIdentitiesByCosine(queryEmbeddings, excludeParticipantIdForHistoricalPool)
 
     suspend fun getRace(raceId: String): RaceEntity? = raceDao.getRace(raceId)
 
@@ -210,6 +164,9 @@ class RaceRepository(
     suspend fun updateLastProcessedPhoto(raceId: String, absolutePath: String?) {
         val race = raceDao.getRace(raceId) ?: return
         raceDao.updateRace(race.copy(lastPhotoPath = absolutePath))
+        if (absolutePath != null && thumbnails.isPathUnderStartPhotosForRace(raceId, absolutePath)) {
+            ensureRaceListThumbnail(raceId)
+        }
     }
 
     suspend fun applyOfflineRaceStartFromStartPhotos(raceId: String) {
@@ -218,7 +175,7 @@ class RaceRepository(
         val race = raceDao.getRace(raceId) ?: return
         val updated = race.copy(startedAtEpochMillis = maxExif)
         raceDao.updateRace(updated)
-        writeRaceXml(updated)
+        raceXml.write(updated)
     }
 
     suspend fun createNewRace(): String {
@@ -226,21 +183,18 @@ class RaceRepository(
         val folder = RacePaths.ensureRaceLayout(appContext, id)
         val now = System.currentTimeMillis()
 
-        val location = LocationCapture.tryGetCurrentLocation(appContext)
-
         val entity = RaceEntity(
             id = id,
             createdAtEpochMillis = now,
             startedAtEpochMillis = null,
             finishedAtEpochMillis = null,
-            latitude = location?.latitude,
-            longitude = location?.longitude,
             status = RaceStatus.CREATED,
             folderPath = folder.absolutePath,
             lastPhotoPath = null,
+            listThumbnailPath = null,
         )
         raceDao.insertRace(entity)
-        writeRaceXml(entity)
+        raceXml.write(entity)
         ProtocolXmlIo.write(RacePaths.protocolXml(appContext, id), id, emptyList())
         return id
     }
@@ -252,14 +206,14 @@ class RaceRepository(
             startedAtEpochMillis = startedAtEpochMillis,
         )
         raceDao.updateRace(updated)
-        writeRaceXml(updated)
+        raceXml.write(updated)
     }
 
     suspend fun markRecording(raceId: String) {
         val race = raceDao.getRace(raceId) ?: return
         val updated = race.copy(status = RaceStatus.RECORDING)
         raceDao.updateRace(updated)
-        writeRaceXml(updated)
+        raceXml.write(updated)
     }
 
     suspend fun markFinished(raceId: String, finishedAtEpochMillis: Long) {
@@ -269,14 +223,22 @@ class RaceRepository(
             finishedAtEpochMillis = finishedAtEpochMillis,
         )
         raceDao.updateRace(updated)
-        writeRaceXml(updated)
+        raceXml.write(updated)
+    }
+
+    /** Updates gun / protocol start instant only (does not change [RaceEntity.status]). */
+    suspend fun updateRaceStartedAtEpochMillis(raceId: String, startedAtEpochMillis: Long?) {
+        val race = raceDao.getRace(raceId) ?: return
+        val updated = race.copy(startedAtEpochMillis = startedAtEpochMillis)
+        raceDao.updateRace(updated)
+        raceXml.write(updated)
     }
 
     suspend fun markExported(raceId: String) {
         val race = raceDao.getRace(raceId) ?: return
         val updated = race.copy(status = RaceStatus.EXPORTED)
         raceDao.updateRace(updated)
-        writeRaceXml(updated)
+        raceXml.write(updated)
     }
 
     /**
@@ -287,43 +249,14 @@ class RaceRepository(
         row: RaceParticipantHashEntity,
         initialEmbeddingSource: EmbeddingSourceType,
         primaryThumbnailPhotoPath: String? = null,
-    ): Long {
-        val id = participantHashDao.insert(row.copy(primaryThumbnailPhotoPath = primaryThumbnailPhotoPath))
-        if (!row.embeddingFailed && row.embedding.isNotBlank()) {
-            participantEmbeddingDao.insert(
-                ParticipantEmbeddingEntity(
-                    participantId = id,
-                    raceId = row.raceId,
-                    embedding = row.embedding,
-                    sourceType = initialEmbeddingSource,
-                    sourcePhotoPath = row.sourcePhoto,
-                    createdAtEpochMillis = row.createdAtEpochMillis,
-                    qualityScore = null,
-                ),
-            )
-        }
-        syncParticipantPrimaryEmbeddingField(id)
-        if (!primaryThumbnailPhotoPath.isNullOrBlank()) {
-            row.identityRegistryId?.let { registryId ->
-                identityRegistryDao.updatePrimaryThumbnailIfMissing(registryId, primaryThumbnailPhotoPath)
-            }
-        }
-        return id
-    }
+    ): Long = embeddingWriter.insertParticipantHash(row, initialEmbeddingSource, primaryThumbnailPhotoPath)
 
     /**
      * Updates [RaceParticipantHashEntity.primaryThumbnailPhotoPath] if the participant doesn't have one yet
      * and the provided path exists.
      */
     suspend fun updateParticipantPrimaryThumbnailIfMissing(participantId: Long, path: String?) {
-        if (path.isNullOrBlank()) return
-        val f = File(path)
-        if (!f.exists()) return
-
-        val p = participantHashDao.getById(participantId) ?: return
-        if (p.primaryThumbnailPhotoPath.isNullOrBlank()) {
-            participantHashDao.update(p.copy(primaryThumbnailPhotoPath = path))
-        }
+        embeddingWriter.updateParticipantPrimaryThumbnailIfMissing(participantId, path)
     }
 
     /**
@@ -358,80 +291,18 @@ class RaceRepository(
         sourcePhotoPath: String?,
         qualityScore: Float?,
         createdAtEpochMillis: Long,
-    ): Boolean {
-        if (embeddingCommaSeparated.isBlank()) return false
-        val existing = participantEmbeddingDao.listEmbeddingStringsForParticipant(participantId)
-        if (existing.any { it == embeddingCommaSeparated }) {
-            return false
-        }
-        participantEmbeddingDao.insert(
-            ParticipantEmbeddingEntity(
-                participantId = participantId,
-                raceId = raceId,
-                embedding = embeddingCommaSeparated,
-                sourceType = sourceType,
-                sourcePhotoPath = sourcePhotoPath,
-                createdAtEpochMillis = createdAtEpochMillis,
-                qualityScore = qualityScore,
-            ),
-        )
-        syncParticipantPrimaryEmbeddingField(participantId)
-        return true
-    }
+    ): Boolean = embeddingWriter.appendParticipantEmbeddingIfNew(
+        raceId,
+        participantId,
+        embeddingCommaSeparated,
+        sourceType,
+        sourcePhotoPath,
+        qualityScore,
+        createdAtEpochMillis,
+    )
 
-    private suspend fun syncParticipantPrimaryEmbeddingField(participantId: Long) {
-        val p = participantHashDao.getById(participantId) ?: return
-        val strings = participantEmbeddingDao.listEmbeddingStringsForParticipant(participantId)
-        val primary = strings.firstOrNull().orEmpty()
-        val failed = primary.isBlank()
-        participantHashDao.update(
-            p.copy(
-                embedding = primary,
-                embeddingFailed = failed,
-            ),
-        )
-    }
-
-    suspend fun resolveGlobalIdentity(embedding: FloatArray): GlobalIdentityResolution {
-        val rows = identityRegistryDao.listAll()
-        var best: IdentityRegistryEntity? = null
-        var bestSim = -1f
-        for (row in rows) {
-            val stored = EmbeddingMath.parseCommaSeparated(row.embedding)
-            if (stored.isEmpty() || stored.size != embedding.size) continue
-            val sim = EmbeddingMath.cosineSimilarity(embedding, stored)
-            if (sim > bestSim) {
-                bestSim = sim
-                best = row
-            }
-        }
-        val threshold = FaceMatchEngine.DEFAULT_MIN_COSINE
-        if (best != null && bestSim >= threshold) {
-            val info = listOfNotNull(best.notes, best.scannedPayload)
-                .filter { !it.isNullOrBlank() }
-                .joinToString(" · ")
-                .takeIf { it.isNotBlank() }
-            return GlobalIdentityResolution(
-                registryId = best.id,
-                registryInfo = info,
-                matchedExisting = true,
-            )
-        }
-        val embeddingStr = EmbeddingMath.formatCommaSeparated(embedding)
-        val newId = identityRegistryDao.insert(
-            IdentityRegistryEntity(
-                embedding = embeddingStr,
-                scannedPayload = null,
-                notes = null,
-                createdAtEpochMillis = System.currentTimeMillis(),
-            ),
-        )
-        return GlobalIdentityResolution(
-            registryId = newId,
-            registryInfo = null,
-            matchedExisting = false,
-        )
-    }
+    suspend fun resolveGlobalIdentity(embedding: FloatArray): GlobalIdentityResolution =
+        identityHelper.resolveGlobalIdentity(embedding)
 
     suspend fun updateParticipantScan(raceId: String, participantId: Long, scannedPayload: String) {
         val trimmed = scannedPayload.trim()
@@ -441,7 +312,8 @@ class RaceRepository(
         row.identityRegistryId?.let { rid ->
             identityRegistryDao.updateScannedPayload(rid, trimmed)
         }
-        mergeParticipantsSharingScannedPayload(raceId, keeperId = participantId, payload = trimmed)
+        scanMerge.mergeParticipantsSharingScannedPayload(raceId, keeperId = participantId, payload = trimmed)
+        consolidateScanMergesForRace(raceId)
     }
 
     /**
@@ -484,25 +356,28 @@ class RaceRepository(
                 identityRegistryDao.updatePrimaryThumbnailIfMissing(canonicalRegistryId, path)
             }
         }
-        updateParticipantPrimaryThumbnailIfMissing(participantId, chosenIr.primaryThumbnailPhotoPath)
+        embeddingWriter.updateParticipantPrimaryThumbnailIfMissing(participantId, chosenIr.primaryThumbnailPhotoPath)
 
-        mergeParticipantsSharingScannedPayload(raceId, keeperId = participantId, payload = scanStored)
-        refreshProtocolXml(raceId)
+        scanMerge.mergeParticipantsSharingScannedPayload(raceId, keeperId = participantId, payload = scanStored)
+        protocolFinish.refreshProtocolXml(raceId)
+        consolidateScanMergesForRace(raceId)
     }
 
     /**
-     * When two protocol rows carry the same scanned code, merge extras into [keeperId]
-     * (finish detections + embeddings), preserving one official participant.
+     * Collapses duplicate **identity_registry** rows that share the same trimmed scan code (keeper =
+     * smallest id), then merges protocol participants in [raceId] that share the same **effective**
+     * scan text (race row or linked registry), like the dashboard COALESCE.
      */
-    private suspend fun mergeParticipantsSharingScannedPayload(raceId: String, keeperId: Long, payload: String) {
-        if (payload.isBlank()) return
-        val ids = participantHashDao.listParticipantIdsWithScannedPayload(raceId, payload)
-        val donors = ids.filter { it != keeperId }.distinct()
-        if (donors.isEmpty()) return
-        Log.i(TAG, "mergeParticipantsSharingScannedPayload keeper=$keeperId donors=$donors payloadLen=${payload.length}")
-        for (donorId in donors) {
-            mergeParticipantIntoKeeper(raceId, keeperId = keeperId, donorId = donorId)
-        }
+    suspend fun consolidateScanMergesForRace(raceId: String) {
+        scanMerge.consolidateScanMergesForRace(raceId)
+    }
+
+    /**
+     * Same as [consolidateScanMergesForRace] for every race — used when opening the device-wide
+     * scanned-identities list.
+     */
+    suspend fun consolidateAllScanMerges() {
+        scanMerge.consolidateAllScanMerges()
     }
 
     /**
@@ -510,38 +385,7 @@ class RaceRepository(
      * (finish detections + embeddings move to keeper; donor row removed). Does not require matching scans.
      */
     suspend fun mergeParticipantRowIntoKeeper(raceId: String, keeperId: Long, donorId: Long) {
-        mergeParticipantIntoKeeper(raceId, keeperId = keeperId, donorId = donorId)
-    }
-
-    private suspend fun mergeParticipantIntoKeeper(raceId: String, keeperId: Long, donorId: Long) {
-        if (donorId == keeperId) return
-        val keeper = participantHashDao.getById(keeperId) ?: return
-        val donor = participantHashDao.getById(donorId) ?: return
-        require(keeper.raceId == raceId && donor.raceId == raceId)
-
-        finishDetectionDao.reassignParticipant(raceId, donorId, keeperId)
-        participantEmbeddingDao.reassignParticipant(raceId, donorId, keeperId)
-
-        val mergedScan = keeper.scannedPayload?.takeIf { it.isNotBlank() } ?: donor.scannedPayload
-        val mergedName = keeper.displayName?.takeIf { it.isNotBlank() } ?: donor.displayName
-        val mergedRegistryInfo = keeper.registryInfo ?: donor.registryInfo
-        val mergedIr = keeper.identityRegistryId ?: donor.identityRegistryId
-
-        participantHashDao.update(
-            keeper.copy(
-                scannedPayload = mergedScan,
-                displayName = mergedName,
-                registryInfo = mergedRegistryInfo,
-                identityRegistryId = mergedIr,
-            ),
-        )
-
-        participantHashDao.deleteById(donorId, raceId)
-
-        syncParticipantPrimaryEmbeddingField(keeperId)
-        recomputeProtocolFinishForParticipant(raceId, keeperId)
-        refreshProtocolXml(raceId)
-        Log.i(TAG, "mergeParticipantIntoKeeper done keeper=$keeperId mergedDonor=$donorId")
+        scanMerge.mergeParticipantIntoKeeper(raceId, keeperId = keeperId, donorId = donorId)
     }
 
     suspend fun updateParticipantDisplayName(raceId: String, participantId: Long, name: String?) {
@@ -549,7 +393,7 @@ class RaceRepository(
         require(row.raceId == raceId)
         val trimmed = name?.trim()?.takeIf { it.isNotEmpty() }
         participantHashDao.update(row.copy(displayName = trimmed))
-        refreshProtocolXml(raceId)
+        protocolFinish.refreshProtocolXml(raceId)
     }
 
     suspend fun exportTimesCsv(raceId: String): Result<File> = runCatching {
@@ -573,54 +417,13 @@ class RaceRepository(
         finishTimeEpochMillis: Long,
         sourcePhotoPath: String?,
         sourceEmbedding: FloatArray? = null,
-    ): RecordFinishDetectionOutcome {
-        val before = participantHashDao.getById(participantId)
-            ?: error("participant not found")
-        val prevProtocol = before.protocolFinishTimeEpochMillis
-
-        finishDetectionDao.insert(
-            FinishDetectionEntity(
-                raceId = raceId,
-                participantHashId = participantId,
-                detectedAtEpochMillis = finishTimeEpochMillis,
-                sourcePhotoPath = sourcePhotoPath ?: "", // Empty string if no photo
-                matchCosineSimilarity = null, // No cosine for manual entry
-            ),
-        )
-
-        // Append embedding if photo provided
-        if (!sourcePhotoPath.isNullOrBlank()) {
-            val photoFile = File(sourcePhotoPath)
-            // Need to extract embedding from the photo, assuming it's already cropped and a face.
-            // For simplicity, we'll assume the photo is a face crop, or handle full image embedding later.
-            // For now, if it's a full photo, it will just be stored as sourcePhotoPath.
-            // A real implementation would extract the face embedding here.
-            // For this task, we'll only store the path and time.
-        }
-
-        recomputeProtocolFinishForParticipant(raceId, participantId)
-
-        val after = participantHashDao.getById(participantId)
-            ?: error("participant missing after update")
-
-        val t0 = after.firstFinishSeenAtEpochMillis
-        val ignored = if (t0 != null) {
-            finishTimeEpochMillis > t0 + FIRST_FINISH_SERIES_WINDOW_MS
-        } else {
-            false
-        }
-        val protocolUpdated = prevProtocol != after.protocolFinishTimeEpochMillis
-
-        refreshProtocolXml(raceId)
-
-        Log.i(TAG, "recordManualFinishDetection participant=$participantId detectedAt=$finishTimeEpochMillis protocolUpdated=$protocolUpdated ignoredLateSeries=$ignored")
-
-        return RecordFinishDetectionOutcome(
-            officialProtocolFinishMillis = after.protocolFinishTimeEpochMillis,
-            detectionIgnoredForProtocolSeries = ignored,
-            protocolFinishTimeUpdated = protocolUpdated,
-        )
-    }
+    ): RecordFinishDetectionOutcome = finishRecorder.recordManualFinishDetection(
+        raceId,
+        participantId,
+        finishTimeEpochMillis,
+        sourcePhotoPath,
+        sourceEmbedding,
+    )
 
     suspend fun recordFinishDetectionForParticipant(
         raceId: String,
@@ -629,60 +432,18 @@ class RaceRepository(
         sourcePhotoPath: String?,
         matchCosineSimilarity: Float?,
         sourceEmbedding: FloatArray? = null,
-    ): RecordFinishDetectionOutcome {
-        val before = participantHashDao.getById(participantId)
-            ?: error("participant not found")
-        val prevProtocol = before.protocolFinishTimeEpochMillis
-
-        finishDetectionDao.insert(
-            FinishDetectionEntity(
-                raceId = raceId,
-                participantHashId = participantId,
-                detectedAtEpochMillis = detectedAtEpochMillis,
-                sourcePhotoPath = sourcePhotoPath ?: "", // Empty string if no photo
-                matchCosineSimilarity = matchCosineSimilarity,
-            ),
-        )
-
-        if (sourceEmbedding != null) {
-            appendParticipantEmbeddingIfNew(
-                raceId = raceId,
-                participantId = participantId,
-                embeddingCommaSeparated = EmbeddingMath.formatCommaSeparated(sourceEmbedding),
-                sourceType = EmbeddingSourceType.FINISH_AUTO,
-                sourcePhotoPath = sourcePhotoPath,
-                qualityScore = matchCosineSimilarity,
-                createdAtEpochMillis = detectedAtEpochMillis,
-            )
-        }
-
-        recomputeProtocolFinishForParticipant(raceId, participantId)
-
-        val after = participantHashDao.getById(participantId)
-            ?: error("participant missing after update")
-
-        val t0 = after.firstFinishSeenAtEpochMillis
-        val ignored = if (t0 != null) {
-            detectedAtEpochMillis > t0 + FIRST_FINISH_SERIES_WINDOW_MS
-        } else {
-            false
-        }
-        val protocolUpdated = prevProtocol != after.protocolFinishTimeEpochMillis
-
-        refreshProtocolXml(raceId)
-
-        Log.i(TAG, "recordFinishDetectionForParticipant participant=$participantId detectedAt=$detectedAtEpochMillis protocolUpdated=$protocolUpdated ignoredLateSeries=$ignored")
-
-        return RecordFinishDetectionOutcome(
-            officialProtocolFinishMillis = after.protocolFinishTimeEpochMillis,
-            detectionIgnoredForProtocolSeries = ignored,
-            protocolFinishTimeUpdated = protocolUpdated,
-        )
-    }
+    ): RecordFinishDetectionOutcome = finishRecorder.recordFinishDetectionForParticipant(
+        raceId,
+        participantId,
+        detectedAtEpochMillis,
+        sourcePhotoPath,
+        matchCosineSimilarity,
+        sourceEmbedding,
+    )
 
     suspend fun removeParticipantFromRace(raceId: String, participantId: Long) {
         participantHashDao.deleteById(participantId, raceId)
-        refreshProtocolXml(raceId)
+        protocolFinish.refreshProtocolXml(raceId)
     }
 
     suspend fun deleteRace(raceId: String) {
@@ -723,7 +484,7 @@ class RaceRepository(
         participantHashDao.findLatestParticipantHashIdForRegistry(registryId)
 
     private suspend fun finishRankForParticipantInRace(raceId: String, participantHashId: Long): Int? {
-        val rows = assignFinishRanks(participantHashDao.getParticipantDashboardSnapshot(raceId))
+        val rows = RaceDashboardFinishRanks.assignFinishRanks(participantHashDao.getParticipantDashboardSnapshot(raceId))
         return rows.find { it.participantId == participantHashId }?.finishRank
     }
 
@@ -748,161 +509,26 @@ class RaceRepository(
      * Distinct photos for this participant in this race: start/source, face thumbnail, then finish-line sources.
      * Paths that appear in finish detections are marked [ParticipantRacePhoto.isFinishFrame].
      */
-    suspend fun listParticipantRacePhotos(raceId: String, participantId: Long): List<ParticipantRacePhoto> {
-        val p = participantHashDao.getById(participantId) ?: return emptyList()
-        require(p.raceId == raceId)
-        val dets = finishDetectionDao.listForParticipantSorted(raceId, participantId)
-        val finishCanonical = dets.map { File(it.sourcePhotoPath).canonicalPath }.toSet()
-
-        fun normalizeExisting(path: String?): String? {
-            if (path.isNullOrBlank()) return null
-            val f = File(path)
-            if (!f.exists()) return null
-            return f.canonicalPath
-        }
-
-        val out = mutableListOf<ParticipantRacePhoto>()
-        val seen = LinkedHashSet<String>()
-
-        fun push(path: String?, preferFinish: Boolean) {
-            if (path.isNullOrBlank()) return
-            if (RacePaths.isPathUnderRaceFacesDir(appContext, raceId, path)) return
-            val canonical = normalizeExisting(path) ?: return
-            val isFinish = preferFinish || finishCanonical.contains(canonical)
-            if (!seen.add(canonical)) {
-                val i = out.indexOfFirst { it.absolutePath == canonical }
-                if (i >= 0 && isFinish && !out[i].isFinishFrame) {
-                    out[i] = out[i].copy(isFinishFrame = true)
-                }
-                return
-            }
-            out.add(ParticipantRacePhoto(canonical, isFinish))
-        }
-
-        push(p.sourcePhoto, false)
-        for (d in dets) {
-            push(d.sourcePhotoPath, true)
-        }
-        return out
-    }
+    suspend fun listParticipantRacePhotos(raceId: String, participantId: Long): List<ParticipantRacePhoto> =
+        participantMediaPaths.listParticipantRacePhotos(raceId, participantId)
 
     /** Finish-line JPEGs/PNGs stored under this race (newest first). */
-    suspend fun listFinishPhotoPathsForRace(raceId: String): List<String> {
-        val dir = RacePaths.finishPhotosDir(appContext, raceId)
-        if (!dir.isDirectory) return emptyList()
-        val files = dir.listFiles { f ->
-            f.isFile && f.name.lowercase().let { n ->
-                n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp")
-            }
-        } ?: return emptyList()
-        return files.sortedByDescending { it.lastModified() }.map { it.absolutePath }
-    }
+    suspend fun listFinishPhotoPathsForRace(raceId: String): List<String> =
+        participantMediaPaths.listFinishPhotoPathsForRace(raceId)
 
     /** Oldest start photo in [start_photos] (first pre-start capture) for list previews. */
-    suspend fun getFirstStartPhotoPathForRace(raceId: String): String? {
-        val dir = RacePaths.startPhotosDir(appContext, raceId)
-        if (!dir.isDirectory) return null
-        val files = dir.listFiles { f ->
-            f.isFile && f.name.lowercase().let { n ->
-                n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp")
-            }
-        } ?: return null
-        return files.minByOrNull { it.lastModified() }?.absolutePath
-    }
+    suspend fun getFirstStartPhotoPathForRace(raceId: String): String? =
+        thumbnails.getFirstStartPhotoPathForRace(raceId)
+
+    /**
+     * Ensures [RaceEntity.listThumbnailPath] points at a small on-disk JPEG derived from
+     * [getFirstStartPhotoPathForRace]. Skips re-encode when the cache is newer than the source file.
+     * Returns the path to the cached file, or null when there is no pre-start photo.
+     */
+    suspend fun ensureRaceListThumbnail(raceId: String): String? =
+        thumbnails.ensureRaceListThumbnail(raceId)
 
     suspend fun refreshProtocolXml(raceId: String) {
-        val allParticipants = participantHashDao.listForRace(raceId)
-        val names = allParticipants.associate { it.id to it.displayName }
-        val participants = allParticipants
-            .filter { it.protocolFinishTimeEpochMillis != null }
-            .sortedBy { it.protocolFinishTimeEpochMillis!! }
-        val rows = participants.map { p ->
-            val t = p.protocolFinishTimeEpochMillis!!
-            val photoPath = resolvePhotoPathForProtocolFinish(raceId, p.id, t)
-            val emb = protocolEmbeddingForParticipant(p.id, p)
-            ProtocolFinishRow(
-                participantHashId = p.id,
-                embedding = emb,
-                finishTimeEpochMillis = t,
-                photoPath = photoPath,
-            )
-        }
-        ProtocolXmlIo.write(RacePaths.protocolXml(appContext, raceId), raceId, rows, names)
-    }
-
-    private suspend fun protocolEmbeddingForParticipant(participantId: Long, legacy: RaceParticipantHashEntity): String {
-        val rows = participantEmbeddingDao.listForParticipant(participantId)
-        val first = rows.firstOrNull()?.embedding?.takeIf { it.isNotBlank() }
-        return first ?: legacy.embedding
-    }
-
-    private suspend fun resolvePhotoPathForProtocolFinish(
-        raceId: String,
-        participantHashId: Long,
-        protocolFinishMillis: Long,
-    ): String {
-        val dets = finishDetectionDao.listForParticipantSorted(raceId, participantHashId)
-        val exact = dets.firstOrNull { it.detectedAtEpochMillis == protocolFinishMillis }
-        if (exact != null) return exact.sourcePhotoPath
-        return dets.lastOrNull { it.detectedAtEpochMillis <= protocolFinishMillis }?.sourcePhotoPath ?: ""
-    }
-
-    private suspend fun recomputeProtocolFinishForParticipant(raceId: String, participantHashId: Long) {
-        val row = participantHashDao.getById(participantHashId) ?: return
-        val dets = finishDetectionDao.listForParticipantSorted(raceId, participantHashId)
-        if (dets.isEmpty()) {
-            participantHashDao.update(
-                row.copy(firstFinishSeenAtEpochMillis = null, protocolFinishTimeEpochMillis = null),
-            )
-            return
-        }
-        val t0 = dets.minOf { it.detectedAtEpochMillis }
-        val windowEnd = t0 + FIRST_FINISH_SERIES_WINDOW_MS
-        val protocolTime = dets.filter { it.detectedAtEpochMillis <= windowEnd }.maxOf { it.detectedAtEpochMillis }
-        participantHashDao.update(
-            row.copy(
-                firstFinishSeenAtEpochMillis = t0,
-                protocolFinishTimeEpochMillis = protocolTime,
-            ),
-        )
-    }
-
-    private fun assignFinishRanks(rows: List<ParticipantDashboardDbRow>): List<ParticipantDashboardRow> {
-        val orderedFinishers = rows
-            .filter { it.finishTimeEpochMillis != null }
-            .sortedWith(compareBy({ it.finishTimeEpochMillis }, { it.participantId }))
-        val rankById = orderedFinishers.mapIndexed { idx, r ->
-            r.participantId to (idx + 1)
-        }.toMap()
-        return rows.map { db ->
-            ParticipantDashboardRow(
-                participantId = db.participantId,
-                raceId = db.raceId,
-                embedding = db.embedding,
-                embeddingFailed = db.embeddingFailed,
-                sourcePhoto = db.sourcePhoto,
-                faceThumbnailPath = db.faceThumbnailPath,
-                scannedPayload = db.scannedPayload,
-                registryInfo = db.registryInfo,
-                raceStartedAtEpochMillis = db.raceStartedAtEpochMillis,
-                finishTimeEpochMillis = db.finishTimeEpochMillis,
-                displayName = db.displayName,
-                primaryThumbnailPhotoPath = db.primaryThumbnailPhotoPath,
-                finishRank = rankById[db.participantId],
-            )
-        }
-    }
-
-    private fun writeRaceXml(entity: RaceEntity) {
-        val snap = RaceXmlSnapshot(
-            id = entity.id,
-            createdAtEpochMillis = entity.createdAtEpochMillis,
-            startedAtEpochMillis = entity.startedAtEpochMillis,
-            finishedAtEpochMillis = entity.finishedAtEpochMillis,
-            latitude = entity.latitude,
-            longitude = entity.longitude,
-            status = entity.status,
-        )
-        RaceXmlIo.write(RacePaths.raceXml(appContext, entity.id), snap)
+        protocolFinish.refreshProtocolXml(raceId)
     }
 }

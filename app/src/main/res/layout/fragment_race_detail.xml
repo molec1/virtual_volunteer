@@ -32,20 +32,45 @@
             tools:text="Created: ..." />
 
         <TextView
-            android:id="@+id/locationText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="6dp"
-            android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
-            tools:text="Location: ..." />
-
-        <TextView
             android:id="@+id/statusText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="6dp"
             android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
             tools:text="Status: ..." />
+
+        <LinearLayout
+            android:id="@+id/raceStartTimeRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/race_start_time_label"
+                android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta" />
+
+            <TextView
+                android:id="@+id/raceStartTimeValue"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
+                tools:text="2026-04-21 10:00:00" />
+
+            <ImageButton
+                android:id="@+id/btnEditRaceStartTime"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/race_start_time_edit_cd"
+                android:src="@android:drawable/ic_menu_edit"
+                app:tint="@color/secondary_ui" />
+        </LinearLayout>
 
         <LinearLayout
             android:id="@+id/timerRow"

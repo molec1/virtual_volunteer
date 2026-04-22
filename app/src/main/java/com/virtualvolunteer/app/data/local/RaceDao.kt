@@ -18,6 +18,9 @@ interface RaceDao {
     @Query("SELECT * FROM races ORDER BY createdAtEpochMillis DESC")
     fun observeAllRaces(): Flow<List<RaceEntity>>
 
+    @Query("SELECT id FROM races")
+    suspend fun listAllRaceIds(): List<String>
+
     @Query("SELECT * FROM races WHERE id = :raceId LIMIT 1")
     suspend fun getRace(raceId: String): RaceEntity?
 

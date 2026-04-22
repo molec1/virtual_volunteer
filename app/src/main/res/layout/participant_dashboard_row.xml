@@ -32,7 +32,7 @@
             tools:text="#3"
             tools:visibility="visible" />
 
-        <ImageView
+        <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/participantThumb"
             android:layout_width="72dp"
             android:layout_height="72dp"
@@ -41,6 +41,7 @@
             android:contentDescription="@string/participant_thumb_cd"
             android:padding="8dp"
             android:scaleType="centerCrop"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.VirtualVolunteer.RoundedThumb"
             tools:ignore="ImageContrastCheck" />
 
         <LinearLayout
