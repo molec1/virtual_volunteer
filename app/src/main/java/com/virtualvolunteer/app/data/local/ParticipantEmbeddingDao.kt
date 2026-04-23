@@ -38,4 +38,7 @@ interface ParticipantEmbeddingDao {
         """,
     )
     suspend fun listEmbeddingStringsForParticipant(participantId: Long): List<String>
+
+    @Query("UPDATE participant_embeddings SET sourcePhotoPath = NULL WHERE id = :id")
+    suspend fun clearSourcePhotoPathByEmbeddingId(id: Long): Int
 }

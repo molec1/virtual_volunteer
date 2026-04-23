@@ -19,7 +19,7 @@ Paths are from `app/src/main/java/com/virtualvolunteer/app/` unless noted as `re
 | **Dashboard list row** (read model, not a table) | `ParticipantDashboardRow` / `ParticipantDashboardDbRow` | `data/local/ParticipantDashboardRow.kt`, `ParticipantDashboardDbRow.kt` |
 
 **Schema + migrations:** `data/local/AppDatabase.kt`, `data/local/Converters.kt`  
-**On-disk layout:** `data/files/RacePaths.kt`  
+**On-disk layout:** `data/files/RacePaths.kt`, `data/files/RaceEventPhotosLister.kt` (full-frame start/finish listing for the race-detail gallery)  
 **Mirrored race + protocol XML:** `data/xml/RaceXmlIo.kt`, `data/xml/RaceXmlSnapshot.kt`, `data/xml/ProtocolXmlIo.kt`
 
 ---
@@ -61,6 +61,7 @@ Paths are from `app/src/main/java/com/virtualvolunteer/app/` unless noted as `re
 | ZIP bundle | `export/RaceZipExporter.kt` |
 | CSV | `export/RaceCsvExport.kt` |
 | Version label strings | `export/ExportVersionLabel.kt` |
+| Participants + embeddings JSON — race (`schemaVersion` 1) and device scanned-identities (`schemaVersion` 2) | `export/ParticipantsExportService.kt` |
 
 ---
 
@@ -69,7 +70,7 @@ Paths are from `app/src/main/java/com/virtualvolunteer/app/` unless noted as `re
 | Area | Kotlin | Layouts / list items (`res/layout/`) |
 |------|--------|--------------------------------------|
 | **Race list** | `ui/racelist/RaceListFragment.kt`, `RaceListAdapter.kt` | `fragment_race_list.xml`, `race_row.xml` |
-| **Race detail** (orchestrates UI; imports/share/debug helpers alongside) | `ui/racedetail/RaceDetailFragment.kt`, `ParticipantDashboardAdapter.kt`, `RaceDetailPhotoBulkImporter.kt`, `RaceDetailShareHelper.kt`, `RaceDetailFinishDebugFormat.kt`, `RaceDetailParticipantSectionUi.kt` | `fragment_race_detail.xml`, `participant_dashboard_row.xml` |
+| **Race detail** (orchestrates UI; imports/share/debug helpers alongside) | `ui/racedetail/RaceDetailFragment.kt`, `ParticipantDashboardAdapter.kt`, `RaceDetailPhotoBulkImporter.kt`, `RaceDetailShareHelper.kt`, `RaceDetailFinishDebugFormat.kt`, `RaceDetailParticipantSectionUi.kt`, `RaceDetailCollapsibleSectionsController.kt`, `RaceEventPhotosGridAdapter.kt`, `RaceEventPhotoViewerDialogFragment.kt` | `fragment_race_detail.xml`, `participant_dashboard_row.xml`, `item_race_event_photo_thumb.xml`, `dialog_race_event_photo_viewer.xml` |
 | **Participant detail** | `ui/racedetail/ParticipantDetailFragment.kt` | `fragment_participant_detail.xml`, `item_participant_detail_race_row.xml` |
 | **Face lookup** (assign scan from cosine-ranked codes) | `ui/racedetail/ParticipantLookupBottomSheet.kt`, `ParticipantLookupAdapter.kt`, `ParticipantLookupEmbeddings.kt` | `item_participant_lookup_result.xml` |
 | **Participant / race photos** | `ui/racedetail/ParticipantPhotosBottomSheet.kt`, `ParticipantRacePhotoAdapter.kt`, `RaceParticipantPhotosBottomSheet.kt` | — (uses race-local paths; list thumbnails) |

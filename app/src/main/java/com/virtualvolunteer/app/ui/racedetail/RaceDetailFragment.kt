@@ -14,6 +14,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
@@ -58,6 +59,7 @@ class RaceDetailFragment : Fragment() {
     private lateinit var raceFlowActions: RaceDetailRaceFlowActions
 
     private lateinit var participantAdapter: ParticipantDashboardAdapter
+    private lateinit var eventPhotosAdapter: RaceEventPhotosGridAdapter
 
     private var latestRace: RaceEntity? = null
 
@@ -188,6 +190,27 @@ class RaceDetailFragment : Fragment() {
         binding.participantsRecycler.adapter = participantAdapter
         binding.participantsRecycler.itemAnimator = null
 
+        eventPhotosAdapter = RaceEventPhotosGridAdapter(viewLifecycleOwner.lifecycleScope) { _, index ->
+            RaceEventPhotoViewerDialogFragment.show(
+                requireActivity().supportFragmentManager,
+                raceId,
+                eventPhotosAdapter.currentList,
+                index,
+            )
+        }
+        binding.eventPhotosRecycler.layoutManager = GridLayoutManager(requireContext(), 3)
+        binding.eventPhotosRecycler.adapter = eventPhotosAdapter
+        binding.eventPhotosRecycler.itemAnimator = null
+
+        requireActivity().supportFragmentManager.setFragmentResultListener(
+            RaceEventPhotoViewerDialogFragment.REQUEST_KEY,
+            viewLifecycleOwner,
+        ) { _, bundle ->
+            if (bundle.getBoolean(RaceEventPhotoViewerDialogFragment.EXTRA_LIST_CHANGED, false)) {
+                refreshEventPhotosGrid()
+            }
+        }
+
         app.pipelineDebugLines.observe(
             viewLifecycleOwner,
             Observer { lines ->
@@ -203,6 +226,7 @@ class RaceDetailFragment : Fragment() {
                         if (race != null) {
                             renderUi(race)
                             collapsibleSections.render(binding)
+                            refreshEventPhotosGrid()
                         }
                     }
                 }
@@ -248,12 +272,16 @@ class RaceDetailFragment : Fragment() {
         binding.btnEditRaceStartTime.setOnClickListener { showEditRaceStartTimeDialog() }
 
         binding.offlineTestHeaderLayout.setOnClickListener { collapsibleSections.toggleOfflineTest(binding) }
+        binding.eventPhotosHeaderLayout.setOnClickListener { collapsibleSections.toggleEventPhotos(binding) }
         binding.participantsHeaderLayout.setOnClickListener { collapsibleSections.toggleParticipants(binding) }
         binding.pipelineDebugHeaderLayout.setOnClickListener { collapsibleSections.togglePipelineDebug(binding) }
+
+        collapsibleSections.render(binding)
     }
 
     override fun onResume() {
         super.onResume()
+        refreshEventPhotosGrid()
         val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
         viewLifecycleOwner.lifecycleScope.launch {
             withContext(Dispatchers.IO) { repo.consolidateScanMergesForRace(raceId) }
@@ -327,6 +355,20 @@ class RaceDetailFragment : Fragment() {
         const val ARG_RACE_ID = "raceId"
         const val ARG_PARTICIPANT_ID = "participantId"
         private const val TAG = "RaceDetail"
+    }
+
+    private fun refreshEventPhotosGrid() {
+        if (_binding == null || !::eventPhotosAdapter.isInitialized) return
+        val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            val paths = repo.listEventPhotoPaths(raceId)
+            withContext(Dispatchers.Main) {
+                if (_binding == null) return@withContext
+                eventPhotosAdapter.submitList(paths)
+                binding.eventPhotosEmpty.visibility = if (paths.isEmpty()) View.VISIBLE else View.GONE
+                binding.eventPhotosRecycler.visibility = if (paths.isEmpty()) View.GONE else View.VISIBLE
+            }
+        }
     }
 
     private fun showEditRaceStartTimeDialog() {

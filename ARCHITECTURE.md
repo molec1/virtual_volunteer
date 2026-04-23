@@ -100,10 +100,28 @@ There is no separate `services/` module; cross-cutting behavior lives in the **r
 
 ---
 
+## Race event photos (manual delete)
+
+The **race detail** “all event photos” grid lists files under **`start_photos`** and **`finish_photos`** (`RaceEventPhotosLister`, `RaceRepository.listEventPhotoPaths`). **`RaceRepository.deleteRaceEventPhoto`** removes the file only when its canonical path is under those dirs for the race; it deletes **`finish_detections`** rows whose `sourcePhotoPath` matches, then **`recomputeProtocolFinishForParticipant`** for each affected participant; clears **`participant_embeddings.sourcePhotoPath`** when it matched; repoints **`race_participant_hashes.sourcePhoto`** / **`primaryThumbnailPhotoPath`** to an existing face crop when possible (otherwise blank source); clears **`races.lastPhotoPath`** when it matched; refreshes **`protocol.xml`**; and re-encodes **`race_list_thumb.jpg`** when a start photo under **`start_photos`** was removed.
+
+---
+
 ## Exports (CSV)
 
 - **Date and time** columns use `dd/MM/yyyy HH:mm:ss` in the device’s default zone (see `RaceUiFormatter.formatCsvDateTime`).
 - **Participant code** in the participants export comes from the race row’s scan, or from the linked `identity_registry` row when the race row has no scan (so a code stored on the global identity still shows after a prior scan).
+
+## Participants JSON (embeddings)
+
+### Race bundle (`schemaVersion` 1)
+
+- **`ParticipantsExportService.exportParticipantsWithEmbeddingsJson` / `importParticipantsWithEmbeddingsJson`** — JSON keyed by **`raceId`** with a **`participants`** array: each row has optional `barcode` / `name` and `embeddings` as numeric arrays.
+- **Race import** is **additive** and **idempotent** on **protocol participants** for that race: match by trimmed scan = `barcode`; new barcodes create a `race_participant_hashes` row; each embedding is inserted only if no **identical** vector already exists (parsed double equality), including the legacy `race_participant_hashes.embedding` mirror when `participant_embeddings` is still empty. Nothing is deleted or overwritten.
+
+### Device “scanned on this device” bundle (`schemaVersion` 2)
+
+- **`exportDeviceScannedIdentitiesJson` / `importDeviceScannedIdentitiesJson`** — no `raceId`. Root has **`exportKind`** = `device_scanned_identities` and an **`identities`** array (same per-row `barcode` / `name` / `embeddings` shape). Export **groups** `identity_registry` rows by trimmed scan code and unions embeddings from the registry plus all **linked** race participants’ `participant_embeddings` (and legacy hash mirrors), like the face-lookup pool.
+- **Device import** updates **`identity_registry` only** (never creates race protocol rows): merges **notes** from `name`; fills an **empty** registry **`embedding`** from the file when the device has **no** vector yet for that code in the union of registry + linked race embeddings. If the registry row **already** has a non-blank face embedding, **extra** file vectors are counted as skipped (single-vector field on `identity_registry`). Run **`consolidateAllScanMerges`** before and after device import in **`RaceRepository`**.
 
 ---
 

@@ -8,6 +8,21 @@ import com.virtualvolunteer.app.R
 import java.io.File
 
 internal object RaceDetailShareHelper {
+    fun shareJson(context: Context, file: File, toastLabel: String) {
+        Toast.makeText(context, toastLabel, Toast.LENGTH_SHORT).show()
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file,
+        )
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/json"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_json_chooser_title)))
+    }
+
     fun shareCsv(context: Context, file: File, toastLabel: String) {
         Toast.makeText(context, toastLabel, Toast.LENGTH_SHORT).show()
         val uri = FileProvider.getUriForFile(
@@ -35,5 +50,27 @@ internal object RaceDetailShareHelper {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(Intent.createChooser(intent, "Share race export"))
+    }
+
+    fun shareImage(context: Context, file: File) {
+        if (!file.exists()) return
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file,
+        )
+        val mime = when (file.extension.lowercase()) {
+            "png" -> "image/png"
+            "webp" -> "image/webp"
+            else -> "image/jpeg"
+        }
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = mime
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(
+            Intent.createChooser(intent, context.getString(R.string.race_event_photo_share_chooser)),
+        )
     }
 }

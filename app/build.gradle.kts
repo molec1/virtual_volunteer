@@ -66,6 +66,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:$lifecycleVersion")
     implementation("androidx.fragment:fragment-ktx:1.8.5")
 
+    // JitPack builds from https://github.com/Baseflow/PhotoView (tag 2.3.0)
+    implementation("com.github.Baseflow:PhotoView:2.3.0")
+
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 

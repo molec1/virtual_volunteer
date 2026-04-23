@@ -37,6 +37,12 @@ interface FinishDetectionDao {
     @Query("SELECT COUNT(*) FROM finish_detections WHERE raceId = :raceId")
     fun observeCountForRace(raceId: String): Flow<Int>
 
+    @Query("SELECT * FROM finish_detections WHERE raceId = :raceId")
+    suspend fun listAllForRace(raceId: String): List<FinishDetectionEntity>
+
+    @Query("DELETE FROM finish_detections WHERE id = :id")
+    suspend fun deleteById(id: Long): Int
+
     @Query(
         """
         UPDATE finish_detections 

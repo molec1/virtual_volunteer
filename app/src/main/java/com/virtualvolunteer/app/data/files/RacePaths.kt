@@ -57,6 +57,19 @@ object RacePaths {
         }
     }
 
+    /** Full-frame start or finish photos only (not [facesDir] or [debugDir]). */
+    fun isPathUnderStartOrFinishPhotosDir(context: Context, raceId: String, absolutePath: String): Boolean {
+        return try {
+            val p = File(absolutePath).canonicalFile
+            val start = startPhotosDir(context, raceId).canonicalFile
+            val finish = finishPhotosDir(context, raceId).canonicalFile
+            (p.path.startsWith(start.path + File.separator) || p.path == start.path) ||
+                (p.path.startsWith(finish.path + File.separator) || p.path == finish.path)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     fun ensureRaceLayout(context: Context, raceId: String): File {
         val root = raceFolder(context, raceId)
         root.mkdirs()

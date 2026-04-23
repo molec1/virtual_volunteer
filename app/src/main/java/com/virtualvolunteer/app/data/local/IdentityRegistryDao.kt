@@ -31,6 +31,15 @@ interface IdentityRegistryDao {
     )
     fun observeWithScannedPayload(): Flow<List<IdentityRegistryEntity>>
 
+    @Query(
+        """
+        SELECT * FROM identity_registry
+        WHERE scannedPayload IS NOT NULL AND LENGTH(TRIM(scannedPayload)) > 0
+        ORDER BY createdAtEpochMillis DESC
+        """,
+    )
+    suspend fun listWithScannedPayload(): List<IdentityRegistryEntity>
+
     @Query("SELECT * FROM identity_registry")
     suspend fun listAll(): List<IdentityRegistryEntity>
 

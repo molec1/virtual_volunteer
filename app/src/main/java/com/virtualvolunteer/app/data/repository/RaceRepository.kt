@@ -1,6 +1,7 @@
 package com.virtualvolunteer.app.data.repository
 
 import android.content.Context
+import com.virtualvolunteer.app.data.files.RaceEventPhotosLister
 import com.virtualvolunteer.app.data.files.RacePaths
 import com.virtualvolunteer.app.data.local.EmbeddingSourceType
 import com.virtualvolunteer.app.data.local.FinishDetectionDao
@@ -17,6 +18,9 @@ import com.virtualvolunteer.app.data.xml.ProtocolXmlIo
 import com.virtualvolunteer.app.domain.identity.GlobalIdentityResolution
 import com.virtualvolunteer.app.domain.matching.ParticipantEmbeddingSet
 import com.virtualvolunteer.app.domain.time.PhotoTimestampResolver
+import com.virtualvolunteer.app.export.DeviceIdentitiesImportResult
+import com.virtualvolunteer.app.export.ParticipantsExportService
+import com.virtualvolunteer.app.export.ParticipantsImportResult
 import com.virtualvolunteer.app.export.RaceCsvExport
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -103,6 +107,11 @@ class RaceRepository(
         appContext,
         participantHashDao,
         finishDetectionDao,
+    )
+    private val participantsExportService = ParticipantsExportService(
+        participantHashDao,
+        participantEmbeddingDao,
+        identityRegistryDao,
     )
     private val scanMerge = ParticipantScanMergeCoordinator(
         raceDao = raceDao,
@@ -409,6 +418,29 @@ class RaceRepository(
     }
 
     /**
+     * Reads participants and embeddings for [raceId] and writes UTF-8 JSON to [destination].
+     * Does not modify the database.
+     */
+    suspend fun exportParticipantsWithEmbeddingsJson(raceId: String, destination: File) {
+        participantsExportService.exportParticipantsWithEmbeddingsJson(raceId, destination)
+    }
+
+    suspend fun importParticipants(raceId: String, source: File): ParticipantsImportResult =
+        participantsExportService.importParticipantsWithEmbeddingsJson(raceId, source)
+
+    suspend fun exportDeviceScannedIdentitiesJson(destination: File) {
+        consolidateAllScanMerges()
+        participantsExportService.exportDeviceScannedIdentitiesJson(destination)
+    }
+
+    suspend fun importDeviceScannedIdentitiesJson(source: File): DeviceIdentitiesImportResult {
+        consolidateAllScanMerges()
+        val result = participantsExportService.importDeviceScannedIdentitiesJson(source)
+        consolidateAllScanMerges()
+        return result
+    }
+
+    /**
      * Stores a matched finish detection and recomputes official protocol finish time for that participant.
      */
     suspend fun recordManualFinishDetection(
@@ -530,5 +562,102 @@ class RaceRepository(
 
     suspend fun refreshProtocolXml(raceId: String) {
         protocolFinish.refreshProtocolXml(raceId)
+    }
+
+    /** Full-frame start + finish photos for this race (newest first). */
+    suspend fun listEventPhotoPaths(raceId: String): List<String> {
+        if (raceDao.getRace(raceId) == null) return emptyList()
+        return RaceEventPhotosLister.listSortedNewestFirst(appContext, raceId)
+    }
+
+    /**
+     * Deletes a start/finish frame JPEG/PNG under the race folder, clears DB references to that path,
+     * removes [FinishDetectionEntity] rows tied to it (then recomputes protocol finish), and refreshes
+     * [protocol.xml]. Returns false if the race is missing or the path is not an allowed event photo file.
+     */
+    suspend fun deleteRaceEventPhoto(raceId: String, photoAbsolutePath: String): Boolean {
+        if (raceDao.getRace(raceId) == null) return false
+        if (!RacePaths.isPathUnderStartOrFinishPhotosDir(appContext, raceId, photoAbsolutePath)) return false
+        val target = try {
+            File(photoAbsolutePath).canonicalPath
+        } catch (_: Exception) {
+            return false
+        }
+
+        fun canonicalSafe(path: String?): String? {
+            if (path.isNullOrBlank()) return null
+            return try {
+                File(path).canonicalPath
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        val detectionRows = finishDetectionDao.listAllForRace(raceId)
+        val detectionIds = detectionRows
+            .filter { canonicalSafe(it.sourcePhotoPath) == target }
+            .map { it.id }
+        val affectedParticipants = detectionRows
+            .filter { canonicalSafe(it.sourcePhotoPath) == target }
+            .map { it.participantHashId }
+            .distinct()
+
+        for (id in detectionIds) {
+            finishDetectionDao.deleteById(id)
+        }
+        for (pid in affectedParticipants) {
+            protocolFinish.recomputeProtocolFinishForParticipant(raceId, pid)
+        }
+
+        for (e in participantEmbeddingDao.listForRace(raceId)) {
+            val sp = e.sourcePhotoPath ?: continue
+            if (canonicalSafe(sp) == target) {
+                participantEmbeddingDao.clearSourcePhotoPathByEmbeddingId(e.id)
+            }
+        }
+
+        for (p in participantHashDao.listForRace(raceId)) {
+            val srcMatch = canonicalSafe(p.sourcePhoto) == target
+            val primaryMatch = canonicalSafe(p.primaryThumbnailPhotoPath) == target
+            if (!srcMatch && !primaryMatch) continue
+            val face = p.faceThumbnailPath?.takeIf { f ->
+                File(f).exists() && canonicalSafe(f) != target
+            }
+            val newSource = if (srcMatch) {
+                face ?: ""
+            } else {
+                p.sourcePhoto
+            }
+            val newPrimary = if (primaryMatch) {
+                face
+            } else {
+                p.primaryThumbnailPhotoPath
+            }
+            if (newSource != p.sourcePhoto || newPrimary != p.primaryThumbnailPhotoPath) {
+                participantHashDao.update(
+                    p.copy(
+                        sourcePhoto = newSource,
+                        primaryThumbnailPhotoPath = newPrimary,
+                    ),
+                )
+                embeddingWriter.syncParticipantPrimaryEmbeddingField(p.id)
+            }
+        }
+
+        val race = raceDao.getRace(raceId) ?: return false
+        if (canonicalSafe(race.lastPhotoPath) == target) {
+            val cleared = race.copy(lastPhotoPath = null)
+            raceDao.updateRace(cleared)
+            raceXml.write(cleared)
+        }
+
+        File(photoAbsolutePath).delete()
+
+        if (thumbnails.isPathUnderStartPhotosForRace(raceId, target)) {
+            thumbnails.ensureRaceListThumbnail(raceId)
+        }
+
+        protocolFinish.refreshProtocolXml(raceId)
+        return true
     }
 }
