@@ -22,10 +22,9 @@ import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.VirtualVolunteerApp
 import com.virtualvolunteer.app.databinding.FragmentCameraCaptureBinding
 import com.virtualvolunteer.app.domain.RacePhotoProcessor
+import com.virtualvolunteer.app.domain.RacePhotoProcessorFactory
 import com.virtualvolunteer.app.domain.face.MlKitFaceDetector
 import com.virtualvolunteer.app.domain.face.TfliteFaceEmbedder
-import com.virtualvolunteer.app.domain.matching.FaceMatchEngine
-import com.virtualvolunteer.app.domain.participants.RoomRaceParticipantPool
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -67,17 +66,12 @@ class CameraCaptureFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val appContext = requireActivity().applicationContext
         val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
-        faceDetector = MlKitFaceDetector()
-        faceEmbedder = TfliteFaceEmbedder(requireActivity().applicationContext)
-        photoProcessor = RacePhotoProcessor(
-            races = repo,
-            faces = faceDetector,
-            embedder = faceEmbedder,
-            matcher = FaceMatchEngine(),
-            pool = RoomRaceParticipantPool(repo),
-            appContext = requireActivity().applicationContext,
-        )
+        val stack = RacePhotoProcessorFactory.createStack(appContext, repo)
+        faceDetector = stack.faceDetector
+        faceEmbedder = stack.faceEmbedder
+        photoProcessor = stack.processor
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -114,9 +108,10 @@ class CameraCaptureFragment : Fragment() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
         cameraProviderFuture.addListener(
             {
+                val b = _binding ?: return@addListener
                 val cameraProvider = cameraProviderFuture.get()
                 val preview = Preview.Builder().build()
-                preview.setSurfaceProvider(binding.cameraPreview.getSurfaceProvider())
+                preview.setSurfaceProvider(b.cameraPreview.getSurfaceProvider())
                 imageCapture = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                     .build()
@@ -145,6 +140,7 @@ class CameraCaptureFragment : Fragment() {
             MODE_FINISH_PHOTO -> RacePhotoProcessor.defaultOutputFinishPhotoFile(requireContext(), raceId)
             else -> RacePhotoProcessor.defaultOutputStartPhotoFile(requireContext(), raceId)
         }
+        val appForIngest = requireActivity().application as VirtualVolunteerApp
         binding.cameraStatus.text = getString(R.string.camera_capture_status_saving)
         binding.btnCameraCapture.isEnabled = false
 
@@ -155,8 +151,9 @@ class CameraCaptureFragment : Fragment() {
             executor,
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    // Fragment lifecycleScope (not view) so ingest can finish after onDestroyView; UI only via _binding on Main.
                     lifecycleScope.launch(Dispatchers.IO) {
-                        val app = requireContext().applicationContext as VirtualVolunteerApp
+                        val app = appForIngest
                         try {
                             when (captureMode) {
                                 MODE_FINISH_PHOTO -> {
@@ -177,8 +174,10 @@ class CameraCaptureFragment : Fragment() {
                             }
                         } finally {
                             withContext(Dispatchers.Main) {
-                                binding.cameraStatus.text = getString(R.string.camera_capture_status_saved)
-                                binding.btnCameraCapture.isEnabled = true
+                                _binding?.let { v ->
+                                    v.cameraStatus.text = getString(R.string.camera_capture_status_saved)
+                                    v.btnCameraCapture.isEnabled = true
+                                }
                             }
                         }
                     }
@@ -186,10 +185,14 @@ class CameraCaptureFragment : Fragment() {
 
                 override fun onError(exception: ImageCaptureException) {
                     Log.e(TAG, "capture failed", exception)
-                    lifecycleScope.launch(Dispatchers.Main) {
-                        binding.cameraStatus.text = getString(R.string.camera_capture_status_ready)
-                        binding.btnCameraCapture.isEnabled = true
-                        Toast.makeText(requireContext(), R.string.import_failed, Toast.LENGTH_SHORT).show()
+                    viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+                        _binding?.let { v ->
+                            v.cameraStatus.text = getString(R.string.camera_capture_status_ready)
+                            v.btnCameraCapture.isEnabled = true
+                        }
+                        if (_binding != null) {
+                            Toast.makeText(requireContext(), R.string.import_failed, Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
             },

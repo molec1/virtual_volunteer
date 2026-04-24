@@ -384,7 +384,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:paddingHorizontal="@dimen/card_padding"
+                    android:paddingHorizontal="6dp"
                     android:paddingBottom="@dimen/card_padding">
 
                     <androidx.recyclerview.widget.RecyclerView
@@ -394,8 +394,8 @@
                         android:layout_marginTop="8dp"
                         android:clipToPadding="false"
                         android:nestedScrollingEnabled="false"
-                        android:paddingTop="@dimen/list_content_padding"
-                        android:paddingBottom="@dimen/list_content_padding"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"
                         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
                         tools:itemCount="4"
                         tools:listitem="@layout/participant_dashboard_row"

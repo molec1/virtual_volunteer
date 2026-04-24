@@ -20,7 +20,7 @@
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/registryThumb"
             android:layout_width="match_parent"
-            android:layout_height="120dp"
+            android:layout_height="@dimen/identity_registry_card_thumb_height"
             android:background="@drawable/bg_placeholder_photo"
             android:contentDescription="@string/participant_thumb_cd"
             android:padding="@dimen/face_thumb_inner_padding"

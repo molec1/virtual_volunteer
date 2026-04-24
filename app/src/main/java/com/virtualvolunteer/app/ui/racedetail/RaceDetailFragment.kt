@@ -25,10 +25,9 @@ import com.virtualvolunteer.app.data.local.RaceEntity
 import com.virtualvolunteer.app.data.model.RaceStatus
 import com.virtualvolunteer.app.databinding.FragmentRaceDetailBinding
 import com.virtualvolunteer.app.domain.RacePhotoProcessor
+import com.virtualvolunteer.app.domain.RacePhotoProcessorFactory
 import com.virtualvolunteer.app.domain.face.MlKitFaceDetector
 import com.virtualvolunteer.app.domain.face.TfliteFaceEmbedder
-import com.virtualvolunteer.app.domain.matching.FaceMatchEngine
-import com.virtualvolunteer.app.domain.participants.RoomRaceParticipantPool
 import com.virtualvolunteer.app.ui.scan.BarcodeScanActivity
 import com.virtualvolunteer.app.ui.util.RaceUiFormatter
 import kotlinx.coroutines.Dispatchers
@@ -141,17 +140,12 @@ class RaceDetailFragment : Fragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val appContext = requireActivity().applicationContext
         val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
-        faceDetector = MlKitFaceDetector()
-        faceEmbedder = TfliteFaceEmbedder(requireActivity().applicationContext)
-        photoProcessor = RacePhotoProcessor(
-            races = repo,
-            faces = faceDetector,
-            embedder = faceEmbedder,
-            matcher = FaceMatchEngine(),
-            pool = RoomRaceParticipantPool(repo),
-            appContext = requireActivity().applicationContext,
-        )
+        val stack = RacePhotoProcessorFactory.createStack(appContext, repo)
+        faceDetector = stack.faceDetector
+        faceEmbedder = stack.faceEmbedder
+        photoProcessor = stack.processor
         photoImports = RaceDetailPhotoBulkImporter(
             requireActivity().application as VirtualVolunteerApp,
             raceId,

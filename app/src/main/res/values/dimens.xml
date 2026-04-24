@@ -10,4 +10,8 @@
     <dimen name="section_spacing_medium">16dp</dimen>
     <dimen name="list_content_padding">12dp</dimen>
     <dimen name="face_thumb_inner_padding">4dp</dimen>
+    <dimen name="participant_row_thumb_size">56dp</dimen>
+    <dimen name="participant_row_action_button_size">36dp</dimen>
+    <dimen name="participant_row_vertical_padding">4dp</dimen>
+    <dimen name="identity_registry_card_thumb_height">96dp</dimen>
 </resources>

@@ -5,7 +5,7 @@
     style="@style/Widget.VirtualVolunteer.Card"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="4dp"
+    android:layout_marginHorizontal="@dimen/list_content_padding"
     android:layout_marginVertical="4dp"
     android:clickable="true"
     android:focusable="true"
@@ -16,12 +16,12 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingHorizontal="2dp"
+        android:paddingHorizontal="@dimen/card_padding"
         android:paddingVertical="@dimen/participant_row_vertical_padding">
 
         <TextView
             android:id="@+id/participantRank"
-            android:layout_width="26dp"
+            android:layout_width="36dp"
             android:layout_height="wrap_content"
             android:gravity="center"
             android:maxLines="1"
@@ -36,7 +36,7 @@
             android:id="@+id/participantThumb"
             android:layout_width="@dimen/participant_row_thumb_size"
             android:layout_height="@dimen/participant_row_thumb_size"
-            android:layout_marginStart="1dp"
+            android:layout_marginStart="6dp"
             android:background="@drawable/bg_placeholder_photo"
             android:contentDescription="@string/participant_thumb_cd"
             android:padding="8dp"
@@ -47,7 +47,7 @@
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="2dp"
+            android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:orientation="vertical">
 
@@ -60,43 +60,30 @@
                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
                 tools:text="Participant Name" />
 
-            <LinearLayout
+            <TextView
+                android:id="@+id/participantScanCode"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
+                tools:text="Scan: ABC123" />
 
-                <TextView
-                    android:id="@+id/participantScanCode"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:minWidth="0dp"
-                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
-                    tools:text="Scan: ABC123" />
-
-                <TextView
-                    android:id="@+id/participantFinishTime"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="2dp"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.Caption"
-                    android:textColor="@color/text_secondary"
-                    tools:text="Finish: 00:00:00" />
-            </LinearLayout>
+            <TextView
+                android:id="@+id/participantFinishTime"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textAppearance="@style/TextAppearance.VirtualVolunteer.Caption"
+                android:textColor="@color/text_secondary"
+                tools:text="Finish: 00:00:00" />
 
             <TextView
                 android:id="@+id/participantRegistryInfo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:ellipsize="end"
-                android:maxLines="2"
                 android:textAppearance="@style/TextAppearance.VirtualVolunteer.Caption"
                 android:visibility="gone"
                 tools:text="Registry info"
@@ -107,9 +94,9 @@
             android:id="@+id/participantMovingTime"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="0dp"
+            android:layout_marginStart="6dp"
             android:gravity="end|center_vertical"
-            android:minWidth="48dp"
+            android:minWidth="56dp"
             android:textAlignment="viewEnd"
             android:textAppearance="@style/TextAppearance.Material3.HeadlineSmall"
             android:textColor="@color/text_primary"
@@ -119,46 +106,34 @@
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="0dp"
+            android:layout_marginStart="4dp"
             android:orientation="horizontal">
 
             <ImageButton
                 android:id="@+id/btnFaceLookup"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:padding="2dp"
+                android:layout_width="@dimen/participant_row_action_button_size"
+                android:layout_height="@dimen/participant_row_action_button_size"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/btn_face_lookup_cd"
                 android:src="@android:drawable/ic_menu_search"
-                android:scaleType="fitCenter"
                 app:tint="@color/secondary_ui" />
 
             <ImageButton
                 android:id="@+id/btnScanCode"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:padding="2dp"
+                android:layout_width="@dimen/participant_row_action_button_size"
+                android:layout_height="@dimen/participant_row_action_button_size"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/btn_scan_code_cd"
                 android:src="@drawable/ic_scan_code"
-                android:scaleType="fitCenter"
                 app:tint="@color/accent_pink" />
 
             <ImageButton
                 android:id="@+id/btnRemoveParticipant"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:padding="2dp"
+                android:layout_width="@dimen/participant_row_action_button_size"
+                android:layout_height="@dimen/participant_row_action_button_size"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/btn_remove_participant_cd"
                 android:src="@drawable/ic_delete"
-                android:scaleType="fitCenter"
                 app:tint="@color/text_secondary" />
         </LinearLayout>
 

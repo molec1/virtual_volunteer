@@ -12,6 +12,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
+import androidx.recyclerview.widget.GridLayoutManager
 import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.VirtualVolunteerApp
 import com.virtualvolunteer.app.databinding.FragmentIdentityRegistryBinding
@@ -84,6 +85,9 @@ class IdentityRegistryFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
+        val spanCount = if (resources.configuration.screenWidthDp >= 600) 4 else 2
+        binding.registryRecycler.layoutManager = GridLayoutManager(requireContext(), spanCount)
+
         val adapter = IdentityRegistryAdapter { registryId ->
             viewLifecycleOwner.lifecycleScope.launch {
                 val participantHashId = withContext(Dispatchers.IO) {

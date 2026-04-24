@@ -38,7 +38,7 @@ Paths are from `app/src/main/java/com/virtualvolunteer/app/` unless noted as `re
 | Participant embedding insert/append/sync + primary thumbnail | `data/repository/RaceParticipantEmbeddingWriter.kt` |
 | Participant race photos + finish-line image paths on disk | `data/repository/RaceParticipantMediaPaths.kt` |
 | Finish detection insert + protocol outcome (manual + auto) | `data/repository/RaceFinishDetectionRecorder.kt` |
-| Start + finish photo orchestration (delegates to ingest/pipeline/debug/test helpers) | `domain/RacePhotoProcessor.kt` |
+| Start + finish photo orchestration (delegates to ingest/pipeline/debug/test helpers) | `domain/RacePhotoProcessor.kt`, `domain/RacePhotoProcessorFactory.kt` (construct processor + detector/embedder stack) |
 | Start photo ingest (detect, crop, embed, insert, offline start) | `domain/StartPhotoIngestor.kt` |
 | Finish photo pipeline (match pool, record detection, optional new participant) | `domain/FinishPhotoPipeline.kt` |
 | Finish photo debug report (no persistence) | `domain/FinishPhotoDebugAnalyzer.kt` |
