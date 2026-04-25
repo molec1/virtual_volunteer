@@ -28,9 +28,9 @@ import com.virtualvolunteer.app.domain.face.TfliteFaceEmbedder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * In-app CameraX capture: multiple stills without leaving the screen; runs existing ingest pipelines.
@@ -48,6 +48,9 @@ class CameraCaptureFragment : Fragment() {
 
     private var cameraExecutor: ExecutorService? = null
     private var imageCapture: ImageCapture? = null
+
+    /** True from capture request through ingest; blocks overlapping captures and parallel TFLite use from this screen. */
+    private val capturePipelineBusy = AtomicBoolean(false)
 
     private lateinit var photoProcessor: RacePhotoProcessor
     private lateinit var faceDetector: MlKitFaceDetector
@@ -135,7 +138,11 @@ class CameraCaptureFragment : Fragment() {
     }
 
     private fun capturePhoto() {
-        val capture = imageCapture ?: return
+        if (!capturePipelineBusy.compareAndSet(false, true)) return
+        val capture = imageCapture ?: run {
+            capturePipelineBusy.set(false)
+            return
+        }
         val file = when (captureMode) {
             MODE_FINISH_PHOTO -> RacePhotoProcessor.defaultOutputFinishPhotoFile(requireContext(), raceId)
             else -> RacePhotoProcessor.defaultOutputStartPhotoFile(requireContext(), raceId)
@@ -151,32 +158,43 @@ class CameraCaptureFragment : Fragment() {
             executor,
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    // Fragment lifecycleScope (not view) so ingest can finish after onDestroyView; UI only via _binding on Main.
-                    lifecycleScope.launch(Dispatchers.IO) {
-                        val app = appForIngest
-                        try {
-                            when (captureMode) {
-                                MODE_FINISH_PHOTO -> {
-                                    app.appendPipelineLog("—— CameraX finish (${file.name}) ——")
-                                    val ingest = photoProcessor.ingestFinishPhoto(raceId, file)
-                                    ingest.onFailure { t ->
-                                        Log.w(TAG, "ingestFinishPhoto failed", t)
-                                        app.appendPipelineLog("CAMERA_FINISH_INGEST_FAILED err=${t.message}")
+                    // Callback runs on cameraExecutor; hop to main before viewLifecycleOwner / binding.
+                    ContextCompat.getMainExecutor(appForIngest).execute {
+                        if (!isAdded || view == null) {
+                            capturePipelineBusy.set(false)
+                            return@execute
+                        }
+                        // viewLifecycleOwner: cancel when the view is gone; never touch binding after destroyView.
+                        viewLifecycleOwner.lifecycleScope.launch {
+                            _binding?.cameraStatus?.text = getString(R.string.camera_capture_status_processing)
+                            try {
+                                withContext(Dispatchers.IO) {
+                                    val app = appForIngest
+                                    when (captureMode) {
+                                        MODE_FINISH_PHOTO -> {
+                                            app.appendPipelineLog("—— CameraX finish (${file.name}) ——")
+                                            val ingest = photoProcessor.ingestFinishPhoto(raceId, file)
+                                            ingest.onFailure { t ->
+                                                Log.w(TAG, "ingestFinishPhoto failed", t)
+                                                app.appendPipelineLog("CAMERA_FINISH_INGEST_FAILED err=${t.message}")
+                                            }
+                                            app.raceRepository.updateLastProcessedPhoto(raceId, file.absolutePath)
+                                            app.appendPipelineLog("CameraX finish capture done")
+                                        }
+                                        else -> {
+                                            photoProcessor.ingestStartPhoto(raceId, file).onFailure { t ->
+                                                Log.w(TAG, "ingestStartPhoto failed", t)
+                                            }
+                                        }
                                     }
-                                    app.raceRepository.updateLastProcessedPhoto(raceId, file.absolutePath)
-                                    app.appendPipelineLog("CameraX finish capture done")
                                 }
-                                else -> {
-                                    photoProcessor.ingestStartPhoto(raceId, file).onFailure { t ->
-                                        Log.w(TAG, "ingestStartPhoto failed", t)
+                            } finally {
+                                capturePipelineBusy.set(false)
+                                withContext(Dispatchers.Main) {
+                                    _binding?.let { v ->
+                                        v.cameraStatus.text = getString(R.string.camera_capture_status_saved)
+                                        v.btnCameraCapture.isEnabled = true
                                     }
-                                }
-                            }
-                        } finally {
-                            withContext(Dispatchers.Main) {
-                                _binding?.let { v ->
-                                    v.cameraStatus.text = getString(R.string.camera_capture_status_saved)
-                                    v.btnCameraCapture.isEnabled = true
                                 }
                             }
                         }
@@ -185,13 +203,14 @@ class CameraCaptureFragment : Fragment() {
 
                 override fun onError(exception: ImageCaptureException) {
                     Log.e(TAG, "capture failed", exception)
-                    viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+                    ContextCompat.getMainExecutor(appForIngest).execute {
+                        capturePipelineBusy.set(false)
                         _binding?.let { v ->
                             v.cameraStatus.text = getString(R.string.camera_capture_status_ready)
                             v.btnCameraCapture.isEnabled = true
                         }
                         if (_binding != null) {
-                            Toast.makeText(requireContext(), R.string.import_failed, Toast.LENGTH_SHORT).show()
+                            Toast.makeText(appForIngest, R.string.import_failed, Toast.LENGTH_SHORT).show()
                         }
                     }
                 }

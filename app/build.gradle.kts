@@ -1,7 +1,32 @@
+import java.io.File
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
+}
+
+val faceMatchingTestdataDir: File = rootProject.file("testdata/face_matching")
+
+// AGP reliably merges androidTest assets from under app/build; copying repo-root testdata here avoids
+// missing same_persons/ in the test APK when using an external srcDir.
+val generatedFaceMatchingAndroidTestAssets =
+    layout.buildDirectory.dir("generated/face-matching-androidTest-assets")
+
+val prepareFaceMatchingAndroidTestAssets = tasks.register("prepareFaceMatchingAndroidTestAssets") {
+    description =
+        "Copies root testdata/face_matching into app/build/... for androidTest asset merge (or leaves an empty dir)."
+    outputs.upToDateWhen { false }
+    val outDir = generatedFaceMatchingAndroidTestAssets.get().asFile
+    outputs.dir(outDir)
+    doLast {
+        outDir.deleteRecursively()
+        if (faceMatchingTestdataDir.exists()) {
+            faceMatchingTestdataDir.copyRecursively(outDir)
+        } else {
+            outDir.mkdirs()
+        }
+    }
 }
 
 android {
@@ -14,6 +39,12 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0-mvp"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    sourceSets {
+        getByName("androidTest") {
+            assets.srcDir(generatedFaceMatchingAndroidTestAssets)
+        }
     }
 
     buildTypes {
@@ -43,6 +74,13 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+}
+
+// Gradle 8+: merge*AndroidTest*Assets reads generated assets; must depend on prepare explicitly (AGP has no srcDir+builtBy).
+afterEvaluate {
+    listOf("mergeDebugAndroidTestAssets", "mergeReleaseAndroidTestAssets").forEach { taskName ->
+        tasks.findByName(taskName)?.dependsOn(prepareFaceMatchingAndroidTestAssets)
     }
 }
 
@@ -83,9 +121,13 @@ dependencies {
     implementation("org.tensorflow:tensorflow-lite:2.14.0")
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+
     val cameraxVersion = "1.3.4"
     implementation("androidx.camera:camera-core:$cameraxVersion")
     implementation("androidx.camera:camera-camera2:$cameraxVersion")
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
     implementation("androidx.camera:camera-view:$cameraxVersion")
 }
+

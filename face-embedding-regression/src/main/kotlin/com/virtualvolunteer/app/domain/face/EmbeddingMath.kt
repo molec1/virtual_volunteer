@@ -3,7 +3,8 @@ package com.virtualvolunteer.app.domain.face
 import kotlin.math.sqrt
 
 /**
- * Vector math for L2-normalized face embeddings and cosine similarity.
+ * Duplicated from the app module for JVM-only regression (keep in sync with app
+ * `EmbeddingMath`).
  */
 object EmbeddingMath {
 
@@ -14,7 +15,6 @@ object EmbeddingMath {
         return FloatArray(v.size) { i -> v[i] / n }
     }
 
-    /** Cosine similarity in [-1, 1] for arbitrary non-zero vectors (uses L2-normalized copies). */
     fun cosineSimilarity(a: FloatArray, b: FloatArray): Float {
         if (a.size != b.size) return -1f
         val na = l2Normalize(a)
@@ -24,12 +24,6 @@ object EmbeddingMath {
         return dot.coerceIn(-1f, 1f)
     }
 
-    /**
-     * Best [cosineSimilarity] over every pair (q, s) where [q] and [s] are non-empty and same length.
-     * Used for “multi-query × multi-stored-vector” scoring (finish match per participant, device lookup).
-     *
-     * @return null if there were no comparable pairs (empty inputs or no dimension match).
-     */
     fun maxCosineSimilarityAcrossPairs(queries: List<FloatArray>, storages: List<FloatArray>): Float? {
         var best = -1f
         var anyComparable = false
@@ -50,7 +44,6 @@ object EmbeddingMath {
         return s.split(',').map { it.trim().toFloat() }.toFloatArray()
     }
 
-    /** Compact storage for Room (comma-separated floats). */
     fun formatCommaSeparated(v: FloatArray): String =
         v.joinToString(",") { it.toString() }
 }

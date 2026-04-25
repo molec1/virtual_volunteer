@@ -13,6 +13,7 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.VirtualVolunteerApp
+import com.virtualvolunteer.app.data.repository.ParticipantRaceSummary
 import com.virtualvolunteer.app.data.repository.RaceRepository
 import com.virtualvolunteer.app.databinding.FragmentParticipantDetailBinding
 import com.virtualvolunteer.app.databinding.ItemParticipantDetailRaceRowBinding
@@ -101,13 +102,13 @@ class ParticipantDetailFragment : Fragment() {
 private class ParticipantRaceAdapter(
     private val lifecycleScope: LifecycleCoroutineScope,
     private val onClick: (raceId: String, participantHashId: Long) -> Unit,
-) : ListAdapter<RaceRepository.ParticipantRaceSummary, ParticipantRaceAdapter.VH>(
-    object : DiffUtil.ItemCallback<RaceRepository.ParticipantRaceSummary>() {
-        override fun areItemsTheSame(oldItem: RaceRepository.ParticipantRaceSummary, newItem: RaceRepository.ParticipantRaceSummary): Boolean {
+) : ListAdapter<ParticipantRaceSummary, ParticipantRaceAdapter.VH>(
+    object : DiffUtil.ItemCallback<ParticipantRaceSummary>() {
+        override fun areItemsTheSame(oldItem: ParticipantRaceSummary, newItem: ParticipantRaceSummary): Boolean {
             return oldItem.raceId == newItem.raceId
         }
 
-        override fun areContentsTheSame(oldItem: RaceRepository.ParticipantRaceSummary, newItem: RaceRepository.ParticipantRaceSummary): Boolean {
+        override fun areContentsTheSame(oldItem: ParticipantRaceSummary, newItem: ParticipantRaceSummary): Boolean {
             return oldItem == newItem
         }
     },
@@ -126,7 +127,7 @@ private class ParticipantRaceAdapter(
         private val binding: ItemParticipantDetailRaceRowBinding,
         private val lifecycleScope: LifecycleCoroutineScope
     ) : RecyclerView.ViewHolder(binding.root) {
-        fun bind(summary: RaceRepository.ParticipantRaceSummary) {
+        fun bind(summary: ParticipantRaceSummary) {
             binding.root.setOnClickListener {
                 onClick(summary.raceId, summary.participantHashId)
             }

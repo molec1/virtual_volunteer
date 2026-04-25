@@ -28,7 +28,11 @@ Paths are from `app/src/main/java/com/virtualvolunteer/app/` unless noted as `re
 
 | Responsibility | File |
 |----------------|------|
-| CRUD, flows, exports, orchestration (delegates to helpers below) | `data/repository/RaceRepository.kt` |
+| CRUD, flows, exports, orchestration (public façade; delegates to helpers below) | `data/repository/RaceRepository.kt` |
+| Race lifecycle (create/status/start time/offline start/delete folder), `race.xml`, list-thumbnail hook on last photo | `data/repository/RaceLifecycleStore.kt` |
+| Per-race embedding strings for matching (`participant_embeddings` + legacy column fallback) | `data/repository/RaceParticipantEmbeddingReader.kt` |
+| Delete start/finish event photo: detections, protocol recompute, paths, file, thumbnails, `protocol.xml` | `data/repository/RaceEventPhotoDeletionService.kt` |
+| Participant ↔ races history (linked by registry when applicable) + `ParticipantRaceSummary` | `data/repository/ParticipantRaceHistoryReader.kt`, `data/repository/ParticipantRaceSummary.kt` |
 | Race XML mirror write | `data/repository/RaceXmlWriter.kt` |
 | Race list thumbnail + start-photo path checks | `data/repository/RaceListThumbnailHelper.kt` |
 | Protocol finish aggregation + `protocol.xml` refresh | `data/repository/RaceProtocolFinishSync.kt` |
@@ -50,6 +54,8 @@ Paths are from `app/src/main/java/com/virtualvolunteer/app/` unless noted as `re
 | **Time** (EXIF, etc.) | `domain/time/PhotoTimestampResolver.kt` |
 | **Debug** (finish photo diagnostics) | `domain/debug/FinishPhotoDebugReport.kt` |
 | **Face / ML** | `domain/face/`: `MlKitFaceDetector.kt`, `TfliteFaceEmbedder.kt` / `FaceEmbedder.kt`, `OrientedPhotoBitmap.kt`, `FaceThumbnailSaver.kt`, `FaceCropBounds.kt`, `EmbeddingMath.kt`, `FaceDebugOverlay.kt` |
+| **Face embedding regression (JVM)** | `:face-embedding-regression` (`LocalFaceCropEmbedder`, `FaceEmbeddingRegressionMain`, `FaceJvmSamePersonRegression`, report); root **`./gradlew faceEmbeddingRegressionTest`** — scans **`testdata/face_matching/same_persons/<id>/`** if present else **`testdata/face_matching/<id>/`** |
+| **Face embedding regression (connected androidTest)** | `app/src/androidTest/java/com/virtualvolunteer/app/regression/` (`ConnectedFaceEmbeddingRegressionTest`, comparator + report); **`prepareFaceMatchingAndroidTestAssets`** copies **`testdata/face_matching/`** into `app/build/generated/…` for the test APK |
 | **Future** placeholder for known participants | `domain/future/FutureKnownParticipant.kt` |
 
 ---

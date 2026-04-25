@@ -62,7 +62,7 @@ Pipeline logs include **candidate photo path**, **nearest participant / best sco
 
 ## Finish aggregation (30-second first-series window)
 
-Implemented in **`RaceRepository.recomputeProtocolFinishForParticipant`** (`FIRST_FINISH_SERIES_WINDOW_MS = 30_000`).
+Implemented in **`RaceProtocolFinishSync.recomputeProtocolFinishForParticipant`** (`FIRST_FINISH_SERIES_WINDOW_MS` is defined on **`RaceRepository`** and passed into that helper; same constant value `30_000`).
 
 After **every** inserted `FinishDetection` for that participant:
 
@@ -97,6 +97,8 @@ Protocol XML and ordering use **official** finish time ascending. Protocol XML s
 | **App** | `VirtualVolunteerApp`, `MainActivity` | DI-style singletons, pipeline debug buffer. |
 
 There is no separate `services/` module; cross-cutting behavior lives in the **repository**, **processor**, and **Application** pipeline log.
+
+**`RaceRepository`** is the app-facing façade (same public methods as before); focused pieces live in **`internal`** types in the same package so they can depend on other **`internal`** helpers without leaking those types in public signatures: race lifecycle + `race.xml` (**`RaceLifecycleStore`**), per-race embedding read model for matching (**`RaceParticipantEmbeddingReader`**), event-photo delete + DB/XML side effects (**`RaceEventPhotoDeletionService`**), participant ↔ races history rows (**`ParticipantRaceHistoryReader`**), plus the existing writers/sync/merge types listed in **`CODE_EXPLORER.md`**.
 
 ---
 
@@ -139,6 +141,8 @@ The **race detail** “all event photos” grid lists files under **`start_photo
 - **Import start/finish folders** — Same processors as camera; timestamps from **`PhotoTimestampResolver`** (EXIF-first).
 - **Build test protocol** — Walks finish folder, runs finish pipeline per file, appends trace to **`protocol_test_debug.log`** under the race directory.
 - **Race gun helper** — `applyOfflineRaceStartFromStartPhotos` can set start time from start-photo EXIF max (offline workflows). After each **`ingestStartPhoto`** (camera or import), the repository runs the same helper so **`races.startedAtEpochMillis`** stays aligned with the start-photo folder.
+- **Face embedding regression (JVM)** — Optional repo-root **`testdata/face_matching/`**; person crops may live under **`same_persons/<person_id>/`** (matches androidTest packaging) **or** directly under **`face_matching/<person_id>/`** (flat layout); **`different_persons/`** is ignored in the flat case; **`./gradlew faceEmbeddingRegressionTest`** runs the **`:face-embedding-regression`** JVM task (no device, no adb): loads **`app/src/main/assets/models/face_embedding.tflite`**, mirrors **`TfliteFaceEmbedder`** tensor preprocessing on disk crops (resize may differ slightly from Android **`Bitmap.createScaledBitmap`**), cosine vs **`FaceMatchEngine.DEFAULT_MIN_COSINE`** (override **`-PfaceRegressionMinCosine=`**), optional **`-PfaceTestMode=diagnostic`** (non-zero exit only in strict mode when pairs fail). Missing **`testdata/face_matching`** → **SKIPPED**, exit code 0. Reports: **`build/face-matching-report/same_person_cosine_report.csv`** and **`same_person_cosine_summary.txt`**. Does not change production matching or DB.
+- **Face embedding regression (connected, optional)** — **`prepareFaceMatchingAndroidTestAssets`** still copies **`testdata/face_matching/`** into **`app/build/generated/face-matching-androidTest-assets/`** for **`ConnectedFaceEmbeddingRegressionTest`** (on-device **`TfliteFaceEmbedder`**, same comparator/report under app **`filesDir`**).
 
 ---
 
@@ -156,5 +160,5 @@ Maintainers should preserve **traceability**: each finish match should be attrib
 
 - Orchestration: `domain/RacePhotoProcessor.kt`
 - Multi-embedding match: `domain/matching/FaceMatchEngine.kt`, `domain/matching/ParticipantEmbeddingSet.kt`
-- Aggregation & protocol: `data/repository/RaceRepository.kt`, `data/xml/ProtocolXmlIo.kt`
+- Aggregation & protocol: `data/repository/RaceRepository.kt`, `data/repository/RaceProtocolFinishSync.kt`, `data/xml/ProtocolXmlIo.kt`
 - Schema: `data/local/AppDatabase.kt`, `RaceParticipantHashEntity`, `ParticipantEmbeddingEntity`, `FinishDetectionEntity`

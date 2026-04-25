@@ -12,21 +12,24 @@ class FaceMatchEngine(
     private val minCosineSimilarity: Float = DEFAULT_MIN_COSINE,
 ) {
 
+    private fun bestCosineForParticipantSet(queries: List<FloatArray>, set: ParticipantEmbeddingSet): Float? {
+        if (!set.hasEmbeddings) return null
+        val storages = set.embeddingStrings.mapNotNull { str ->
+            EmbeddingMath.parseCommaSeparated(str).takeIf { it.isNotEmpty() }
+        }
+        if (storages.isEmpty()) return null
+        return EmbeddingMath.maxCosineSimilarityAcrossPairs(queries, storages)
+    }
+
     fun nearest(observed: FloatArray, pool: List<ParticipantEmbeddingSet>): MatchScore? {
         if (pool.isEmpty()) return null
+        val queries = listOf(observed)
         var bestParticipant: RaceParticipantHashEntity? = null
         var bestSimOverall = -1f
         for (set in pool) {
-            if (!set.hasEmbeddings) continue
-            var bestForParticipant = -1f
-            for (embStr in set.embeddingStrings) {
-                val stored = EmbeddingMath.parseCommaSeparated(embStr)
-                if (stored.isEmpty() || stored.size != observed.size) continue
-                val sim = EmbeddingMath.cosineSimilarity(observed, stored)
-                if (sim > bestForParticipant) bestForParticipant = sim
-            }
-            if (bestForParticipant > bestSimOverall) {
-                bestSimOverall = bestForParticipant
+            val sim = bestCosineForParticipantSet(queries, set) ?: continue
+            if (sim > bestSimOverall) {
+                bestSimOverall = sim
                 bestParticipant = set.participant
             }
         }
@@ -44,17 +47,12 @@ class FaceMatchEngine(
         pool: List<ParticipantEmbeddingSet>,
         n: Int,
     ): List<MatchCandidate> {
+        val queries = listOf(observed)
         val candidates = ArrayList<MatchCandidate>(pool.size)
         for (set in pool) {
             if (!set.hasEmbeddings) continue
-            var bestForParticipant = -1f
-            for (embStr in set.embeddingStrings) {
-                val stored = EmbeddingMath.parseCommaSeparated(embStr)
-                if (stored.isEmpty() || stored.size != observed.size) continue
-                val sim = EmbeddingMath.cosineSimilarity(observed, stored)
-                if (sim > bestForParticipant) bestForParticipant = sim
-            }
-            candidates.add(MatchCandidate(set, bestForParticipant))
+            val sim = bestCosineForParticipantSet(queries, set) ?: -1f
+            candidates.add(MatchCandidate(set, sim))
         }
         return candidates.filter { it.cosineSimilarity >= minCosineSimilarity }
             .sortedByDescending { it.cosineSimilarity }
@@ -70,21 +68,11 @@ class FaceMatchEngine(
         pool: List<ParticipantEmbeddingSet>,
         topN: Int = 40,
     ): List<MatchCandidate> {
+        val queries = listOf(observed)
         val candidates = ArrayList<MatchCandidate>(pool.size)
         for (set in pool) {
-            if (!set.hasEmbeddings) continue
-            var bestForParticipant = -1f
-            var any = false
-            for (embStr in set.embeddingStrings) {
-                val stored = EmbeddingMath.parseCommaSeparated(embStr)
-                if (stored.isEmpty() || stored.size != observed.size) continue
-                val sim = EmbeddingMath.cosineSimilarity(observed, stored)
-                if (sim > bestForParticipant) bestForParticipant = sim
-                any = true
-            }
-            if (any) {
-                candidates.add(MatchCandidate(set, bestForParticipant))
-            }
+            val sim = bestCosineForParticipantSet(queries, set) ?: continue
+            candidates.add(MatchCandidate(set, sim))
         }
         return candidates.sortedByDescending { it.cosineSimilarity }.take(topN)
     }
@@ -101,25 +89,10 @@ class FaceMatchEngine(
     ): List<MatchCandidate> {
         val validObs = observeds.filter { it.isNotEmpty() }
         if (validObs.isEmpty()) return emptyList()
-        if (validObs.size == 1) return rankedByCosine(validObs.first(), pool, topN)
-
         val candidates = ArrayList<MatchCandidate>(pool.size)
         for (set in pool) {
-            if (!set.hasEmbeddings) continue
-            var bestOverall = -1f
-            var any = false
-            for (obs in validObs) {
-                for (embStr in set.embeddingStrings) {
-                    val stored = EmbeddingMath.parseCommaSeparated(embStr)
-                    if (stored.isEmpty() || stored.size != obs.size) continue
-                    val sim = EmbeddingMath.cosineSimilarity(obs, stored)
-                    any = true
-                    if (sim > bestOverall) bestOverall = sim
-                }
-            }
-            if (any) {
-                candidates.add(MatchCandidate(set, bestOverall))
-            }
+            val sim = bestCosineForParticipantSet(validObs, set) ?: continue
+            candidates.add(MatchCandidate(set, sim))
         }
         return candidates.sortedByDescending { it.cosineSimilarity }.take(topN)
     }

@@ -73,17 +73,7 @@ internal class IdentityAssignmentHelper(
             }
             if (vectors.isEmpty()) continue
 
-            var best = -1f
-            var anyComparable = false
-            for (q in queries) {
-                for (h in vectors) {
-                    if (h.size != q.size) continue
-                    anyComparable = true
-                    val c = EmbeddingMath.cosineSimilarity(q, h)
-                    if (c > best) best = c
-                }
-            }
-            if (!anyComparable) continue
+            val best = EmbeddingMath.maxCosineSimilarityAcrossPairs(queries, vectors) ?: continue
 
             val thumb = irs.firstNotNullOfOrNull { r ->
                 r.primaryThumbnailPhotoPath?.trim()?.takeIf { t ->

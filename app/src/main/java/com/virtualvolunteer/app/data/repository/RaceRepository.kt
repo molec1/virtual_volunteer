@@ -2,7 +2,6 @@ package com.virtualvolunteer.app.data.repository
 
 import android.content.Context
 import com.virtualvolunteer.app.data.files.RaceEventPhotosLister
-import com.virtualvolunteer.app.data.files.RacePaths
 import com.virtualvolunteer.app.data.local.EmbeddingSourceType
 import com.virtualvolunteer.app.data.local.FinishDetectionDao
 import com.virtualvolunteer.app.data.local.IdentityRegistryDao
@@ -13,11 +12,8 @@ import com.virtualvolunteer.app.data.local.ParticipantHashDao
 import com.virtualvolunteer.app.data.local.RaceDao
 import com.virtualvolunteer.app.data.local.RaceEntity
 import com.virtualvolunteer.app.data.local.RaceParticipantHashEntity
-import com.virtualvolunteer.app.data.model.RaceStatus
-import com.virtualvolunteer.app.data.xml.ProtocolXmlIo
 import com.virtualvolunteer.app.domain.identity.GlobalIdentityResolution
 import com.virtualvolunteer.app.domain.matching.ParticipantEmbeddingSet
-import com.virtualvolunteer.app.domain.time.PhotoTimestampResolver
 import com.virtualvolunteer.app.export.DeviceIdentitiesImportResult
 import com.virtualvolunteer.app.export.ParticipantsExportService
 import com.virtualvolunteer.app.export.ParticipantsImportResult
@@ -25,7 +21,6 @@ import com.virtualvolunteer.app.export.RaceCsvExport
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.io.File
-import java.util.UUID
 
 /** One image file for a participant in a race; [isFinishFrame] when used as a finish detection source. */
 data class ParticipantRacePhoto(
@@ -125,6 +120,32 @@ class RaceRepository(
         refreshProtocolXml = { protocolFinish.refreshProtocolXml(it) },
     )
 
+    private val lifecycleStore = RaceLifecycleStore(
+        appContext,
+        raceDao,
+        raceXml,
+        thumbnails,
+    )
+    private val embeddingReader = RaceParticipantEmbeddingReader(
+        participantHashDao,
+        participantEmbeddingDao,
+    )
+    private val eventPhotoDeletion = RaceEventPhotoDeletionService(
+        appContext,
+        raceDao,
+        participantHashDao,
+        participantEmbeddingDao,
+        finishDetectionDao,
+        raceXml,
+        protocolFinish,
+        embeddingWriter,
+        thumbnails,
+    )
+    private val participantRaceHistory = ParticipantRaceHistoryReader(
+        raceDao,
+        participantHashDao,
+    )
+
     fun observeAllRaces(): Flow<List<RaceEntity>> = raceDao.observeAllRaces()
 
     fun observeRace(raceId: String): Flow<RaceEntity?> = raceDao.observeRace(raceId)
@@ -171,83 +192,34 @@ class RaceRepository(
         participantHashDao.getById(id)
 
     suspend fun updateLastProcessedPhoto(raceId: String, absolutePath: String?) {
-        val race = raceDao.getRace(raceId) ?: return
-        raceDao.updateRace(race.copy(lastPhotoPath = absolutePath))
-        if (absolutePath != null && thumbnails.isPathUnderStartPhotosForRace(raceId, absolutePath)) {
-            ensureRaceListThumbnail(raceId)
-        }
+        lifecycleStore.updateLastProcessedPhoto(raceId, absolutePath)
     }
 
     suspend fun applyOfflineRaceStartFromStartPhotos(raceId: String) {
-        val dir = RacePaths.startPhotosDir(appContext, raceId)
-        val maxExif = PhotoTimestampResolver.maxEpochAmongImages(dir) ?: return
-        val race = raceDao.getRace(raceId) ?: return
-        val updated = race.copy(startedAtEpochMillis = maxExif)
-        raceDao.updateRace(updated)
-        raceXml.write(updated)
+        lifecycleStore.applyOfflineRaceStartFromStartPhotos(raceId)
     }
 
-    suspend fun createNewRace(): String {
-        val id = UUID.randomUUID().toString()
-        val folder = RacePaths.ensureRaceLayout(appContext, id)
-        val now = System.currentTimeMillis()
-
-        val entity = RaceEntity(
-            id = id,
-            createdAtEpochMillis = now,
-            startedAtEpochMillis = null,
-            finishedAtEpochMillis = null,
-            status = RaceStatus.CREATED,
-            folderPath = folder.absolutePath,
-            lastPhotoPath = null,
-            listThumbnailPath = null,
-        )
-        raceDao.insertRace(entity)
-        raceXml.write(entity)
-        ProtocolXmlIo.write(RacePaths.protocolXml(appContext, id), id, emptyList())
-        return id
-    }
+    suspend fun createNewRace(): String = lifecycleStore.createNewRace()
 
     suspend fun markStarted(raceId: String, startedAtEpochMillis: Long) {
-        val race = raceDao.getRace(raceId) ?: return
-        val updated = race.copy(
-            status = RaceStatus.STARTED,
-            startedAtEpochMillis = startedAtEpochMillis,
-        )
-        raceDao.updateRace(updated)
-        raceXml.write(updated)
+        lifecycleStore.markStarted(raceId, startedAtEpochMillis)
     }
 
     suspend fun markRecording(raceId: String) {
-        val race = raceDao.getRace(raceId) ?: return
-        val updated = race.copy(status = RaceStatus.RECORDING)
-        raceDao.updateRace(updated)
-        raceXml.write(updated)
+        lifecycleStore.markRecording(raceId)
     }
 
     suspend fun markFinished(raceId: String, finishedAtEpochMillis: Long) {
-        val race = raceDao.getRace(raceId) ?: return
-        val updated = race.copy(
-            status = RaceStatus.FINISHED,
-            finishedAtEpochMillis = finishedAtEpochMillis,
-        )
-        raceDao.updateRace(updated)
-        raceXml.write(updated)
+        lifecycleStore.markFinished(raceId, finishedAtEpochMillis)
     }
 
     /** Updates gun / protocol start instant only (does not change [RaceEntity.status]). */
     suspend fun updateRaceStartedAtEpochMillis(raceId: String, startedAtEpochMillis: Long?) {
-        val race = raceDao.getRace(raceId) ?: return
-        val updated = race.copy(startedAtEpochMillis = startedAtEpochMillis)
-        raceDao.updateRace(updated)
-        raceXml.write(updated)
+        lifecycleStore.updateRaceStartedAtEpochMillis(raceId, startedAtEpochMillis)
     }
 
     suspend fun markExported(raceId: String) {
-        val race = raceDao.getRace(raceId) ?: return
-        val updated = race.copy(status = RaceStatus.EXPORTED)
-        raceDao.updateRace(updated)
-        raceXml.write(updated)
+        lifecycleStore.markExported(raceId)
     }
 
     /**
@@ -272,21 +244,8 @@ class RaceRepository(
      * Build per-participant embedding sets for cosine matching (multi-vector).
      * Falls back to legacy [RaceParticipantHashEntity.embedding] when the new table is empty.
      */
-    suspend fun listParticipantEmbeddingSets(raceId: String): List<ParticipantEmbeddingSet> {
-        val hashes = participantHashDao.listForRace(raceId)
-        val byPid = participantEmbeddingDao.listForRace(raceId).groupBy { it.participantId }
-        return hashes.map { h ->
-            val fromTable = byPid[h.id].orEmpty().map { it.embedding }.filter { it.isNotBlank() }
-            val strings = if (fromTable.isNotEmpty()) {
-                fromTable
-            } else if (!h.embeddingFailed && h.embedding.isNotBlank()) {
-                listOf(h.embedding)
-            } else {
-                emptyList()
-            }
-            ParticipantEmbeddingSet(participant = h, embeddingStrings = strings)
-        }
-    }
+    suspend fun listParticipantEmbeddingSets(raceId: String): List<ParticipantEmbeddingSet> =
+        embeddingReader.listParticipantEmbeddingSets(raceId)
 
     /**
      * Appends a finish (or merge) embedding if it is not already stored exactly for this participant.
@@ -479,57 +438,17 @@ class RaceRepository(
     }
 
     suspend fun deleteRace(raceId: String) {
-        raceDao.deleteRaceById(raceId)
-        val folder = RacePaths.raceFolder(appContext, raceId)
-        if (folder.exists()) {
-            folder.deleteRecursively()
-        }
+        lifecycleStore.deleteRace(raceId)
     }
 
     suspend fun listParticipantHashes(raceId: String): List<RaceParticipantHashEntity> =
         participantHashDao.listForRace(raceId)
 
-    suspend fun listRacesForParticipant(participantId: Long): List<ParticipantRaceSummary> {
-        val seed = participantHashDao.getById(participantId) ?: return emptyList()
-        val registryId = seed.identityRegistryId
-        val hashRows = if (registryId != null) {
-            participantHashDao.listHashesForIdentityRegistry(registryId)
-        } else {
-            listOf(seed)
-        }
-        return hashRows.mapNotNull { p ->
-            val race = raceDao.getRace(p.raceId) ?: return@mapNotNull null
-            val rank = finishRankForParticipantInRace(p.raceId, p.id)
-            ParticipantRaceSummary(
-                participantHashId = p.id,
-                raceId = race.id,
-                raceCreatedAtMillis = race.createdAtEpochMillis,
-                raceStartedAtEpochMillis = race.startedAtEpochMillis,
-                protocolFinishTimeEpochMillis = p.protocolFinishTimeEpochMillis,
-                finishRank = rank,
-                raceThumbnailPhotoPath = race.lastPhotoPath,
-            )
-        }.sortedByDescending { it.raceCreatedAtMillis }
-    }
+    suspend fun listRacesForParticipant(participantId: Long): List<ParticipantRaceSummary> =
+        participantRaceHistory.listRacesForParticipant(participantId)
 
     suspend fun resolveParticipantHashIdForRegistry(registryId: Long): Long? =
         participantHashDao.findLatestParticipantHashIdForRegistry(registryId)
-
-    private suspend fun finishRankForParticipantInRace(raceId: String, participantHashId: Long): Int? {
-        val rows = RaceDashboardFinishRanks.assignFinishRanks(participantHashDao.getParticipantDashboardSnapshot(raceId))
-        return rows.find { it.participantId == participantHashId }?.finishRank
-    }
-
-    data class ParticipantRaceSummary(
-        /** [RaceParticipantHashEntity.id] for this specific race (for photos / protocol in that event). */
-        val participantHashId: Long,
-        val raceId: String,
-        val raceCreatedAtMillis: Long,
-        val raceStartedAtEpochMillis: Long?,
-        val protocolFinishTimeEpochMillis: Long?,
-        val finishRank: Int?,
-        val raceThumbnailPhotoPath: String?,
-    )
 
     suspend fun countParticipantsForRace(raceId: String): Int =
         participantHashDao.countForRace(raceId)
@@ -575,89 +494,6 @@ class RaceRepository(
      * removes [FinishDetectionEntity] rows tied to it (then recomputes protocol finish), and refreshes
      * [protocol.xml]. Returns false if the race is missing or the path is not an allowed event photo file.
      */
-    suspend fun deleteRaceEventPhoto(raceId: String, photoAbsolutePath: String): Boolean {
-        if (raceDao.getRace(raceId) == null) return false
-        if (!RacePaths.isPathUnderStartOrFinishPhotosDir(appContext, raceId, photoAbsolutePath)) return false
-        val target = try {
-            File(photoAbsolutePath).canonicalPath
-        } catch (_: Exception) {
-            return false
-        }
-
-        fun canonicalSafe(path: String?): String? {
-            if (path.isNullOrBlank()) return null
-            return try {
-                File(path).canonicalPath
-            } catch (_: Exception) {
-                null
-            }
-        }
-
-        val detectionRows = finishDetectionDao.listAllForRace(raceId)
-        val detectionIds = detectionRows
-            .filter { canonicalSafe(it.sourcePhotoPath) == target }
-            .map { it.id }
-        val affectedParticipants = detectionRows
-            .filter { canonicalSafe(it.sourcePhotoPath) == target }
-            .map { it.participantHashId }
-            .distinct()
-
-        for (id in detectionIds) {
-            finishDetectionDao.deleteById(id)
-        }
-        for (pid in affectedParticipants) {
-            protocolFinish.recomputeProtocolFinishForParticipant(raceId, pid)
-        }
-
-        for (e in participantEmbeddingDao.listForRace(raceId)) {
-            val sp = e.sourcePhotoPath ?: continue
-            if (canonicalSafe(sp) == target) {
-                participantEmbeddingDao.clearSourcePhotoPathByEmbeddingId(e.id)
-            }
-        }
-
-        for (p in participantHashDao.listForRace(raceId)) {
-            val srcMatch = canonicalSafe(p.sourcePhoto) == target
-            val primaryMatch = canonicalSafe(p.primaryThumbnailPhotoPath) == target
-            if (!srcMatch && !primaryMatch) continue
-            val face = p.faceThumbnailPath?.takeIf { f ->
-                File(f).exists() && canonicalSafe(f) != target
-            }
-            val newSource = if (srcMatch) {
-                face ?: ""
-            } else {
-                p.sourcePhoto
-            }
-            val newPrimary = if (primaryMatch) {
-                face
-            } else {
-                p.primaryThumbnailPhotoPath
-            }
-            if (newSource != p.sourcePhoto || newPrimary != p.primaryThumbnailPhotoPath) {
-                participantHashDao.update(
-                    p.copy(
-                        sourcePhoto = newSource,
-                        primaryThumbnailPhotoPath = newPrimary,
-                    ),
-                )
-                embeddingWriter.syncParticipantPrimaryEmbeddingField(p.id)
-            }
-        }
-
-        val race = raceDao.getRace(raceId) ?: return false
-        if (canonicalSafe(race.lastPhotoPath) == target) {
-            val cleared = race.copy(lastPhotoPath = null)
-            raceDao.updateRace(cleared)
-            raceXml.write(cleared)
-        }
-
-        File(photoAbsolutePath).delete()
-
-        if (thumbnails.isPathUnderStartPhotosForRace(raceId, target)) {
-            thumbnails.ensureRaceListThumbnail(raceId)
-        }
-
-        protocolFinish.refreshProtocolXml(raceId)
-        return true
-    }
+    suspend fun deleteRaceEventPhoto(raceId: String, photoAbsolutePath: String): Boolean =
+        eventPhotoDeletion.deleteRaceEventPhoto(raceId, photoAbsolutePath)
 }

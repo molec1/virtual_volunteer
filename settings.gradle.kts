@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "VirtualVolunteer"
 include(":app")
+include(":face-embedding-regression")

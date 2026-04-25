@@ -23,6 +23,8 @@ class TfliteFaceEmbedder(
 ) : FaceEmbedder {
 
     private val interpreter: Interpreter
+    private val interpreterLock = Any()
+    private var closed: Boolean = false
     private val inputH: Int
     private val inputW: Int
     private val inputChannels: Int
@@ -33,7 +35,7 @@ class TfliteFaceEmbedder(
     init {
         val modelBuffer = FileUtil.loadMappedFile(context.applicationContext, assetPath)
         val options = Interpreter.Options().apply {
-            setNumThreads(4)
+            setNumThreads(1)
             setUseNNAPI(false)
         }
         interpreter = Interpreter(modelBuffer, options)
@@ -57,10 +59,16 @@ class TfliteFaceEmbedder(
             val outputBuffer = allocateOutputBuffer()
             if (inputFloat) {
                 val input = bitmapToFloatBufferNhwc(scaled)
-                interpreter.run(input, outputBuffer)
+                synchronized(interpreterLock) {
+                    check(!closed) { "TfliteFaceEmbedder is closed" }
+                    interpreter.run(input, outputBuffer)
+                }
             } else {
                 val input = bitmapToUint8BufferNhwc(scaled)
-                interpreter.run(input, outputBuffer)
+                synchronized(interpreterLock) {
+                    check(!closed) { "TfliteFaceEmbedder is closed" }
+                    interpreter.run(input, outputBuffer)
+                }
             }
             val flat = flattenEmbeddingOutput(outputBuffer)
             return EmbeddingMath.l2Normalize(flat)
@@ -91,7 +99,11 @@ class TfliteFaceEmbedder(
         }
 
     fun close() {
-        interpreter.close()
+        synchronized(interpreterLock) {
+            if (closed) return
+            closed = true
+            interpreter.close()
+        }
     }
 
     private fun bitmapToFloatBufferNhwc(bitmap: Bitmap): ByteBuffer {
