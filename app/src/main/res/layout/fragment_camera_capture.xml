@@ -56,12 +56,21 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnCameraDone"
                 style="@style/Widget.VirtualVolunteer.Button.Secondary"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/camera_capture_done"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:gravity="center"
+                android:insetLeft="0dp"
+                android:insetTop="0dp"
+                android:insetRight="0dp"
+                android:insetBottom="0dp"
+                android:text=""
                 android:textColor="@android:color/white"
                 app:strokeColor="@android:color/white"
-                app:backgroundTint="@android:color/transparent" />
+                app:backgroundTint="@android:color/transparent"
+                app:icon="@drawable/ic_finish_tick"
+                app:iconGravity="textTop"
+                app:iconPadding="0dp"
+                app:iconSize="22dp" />
 
             <Space
                 android:layout_width="24dp"
@@ -70,10 +79,18 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnCameraCapture"
                 style="@style/Widget.VirtualVolunteer.Button.Primary"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:minWidth="140dp"
-                android:text="@string/camera_capture_capture" />
+                android:layout_width="112dp"
+                android:layout_height="56dp"
+                android:gravity="center"
+                android:insetLeft="0dp"
+                android:insetTop="0dp"
+                android:insetRight="0dp"
+                android:insetBottom="0dp"
+                android:text=""
+                app:icon="@drawable/ic_camera"
+                app:iconGravity="textTop"
+                app:iconPadding="0dp"
+                app:iconSize="26dp" />
         </LinearLayout>
     </LinearLayout>
 

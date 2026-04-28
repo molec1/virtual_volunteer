@@ -20,6 +20,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.core.view.isVisible
 import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.VirtualVolunteerApp
 import com.virtualvolunteer.app.data.local.RaceEntity
@@ -257,10 +258,16 @@ class RaceDetailFragment : Fragment() {
             }
         }
 
-        binding.btnStartRace.setOnClickListener { raceFlowActions.onStartRaceClicked() }
         binding.btnPreStartPhoto.setOnClickListener { raceFlowActions.onPreStartPhotoClicked() }
         binding.btnTakeFinishPhoto.setOnClickListener { raceFlowActions.onTakeFinishPhotoClicked() }
-        binding.btnFinishRace.setOnClickListener { raceFlowActions.onFinishRaceClicked() }
+        binding.btnRaceAction.setOnClickListener {
+            val race = latestRace ?: return@setOnClickListener
+            if (race.status == RaceStatus.CREATED) {
+                raceFlowActions.onStartRaceClicked()
+            } else {
+                raceFlowActions.onFinishRaceClicked()
+            }
+        }
         binding.btnExport.setOnClickListener { raceFlowActions.onExportClicked() }
         binding.btnExportTimesCsv.setOnClickListener { raceFlowActions.onExportTimesCsvClicked() }
         binding.btnExportParticipantsCsv.setOnClickListener { raceFlowActions.onExportParticipantsCsvClicked() }
@@ -332,17 +339,22 @@ class RaceDetailFragment : Fragment() {
             handler.removeCallbacks(timerRunnable)
         }
 
-        binding.btnStartRace.visibility = if (race.status == RaceStatus.CREATED) View.VISIBLE else View.GONE
         binding.btnPreStartPhoto.visibility = if (race.status == RaceStatus.CREATED) View.VISIBLE else View.GONE
         binding.btnPreStartPhoto.isEnabled = race.status == RaceStatus.CREATED
+
+        binding.btnRaceAction.isVisible =
+            race.status == RaceStatus.CREATED || race.status == RaceStatus.STARTED || race.status == RaceStatus.RECORDING
+        binding.btnRaceAction.isEnabled = race.status != RaceStatus.FINISHED && race.status != RaceStatus.EXPORTED
+        binding.btnRaceAction.setIconResource(
+            if (race.status == RaceStatus.CREATED) R.drawable.ic_play else R.drawable.ic_stop,
+        )
 
         val postStartVisible = race.status != RaceStatus.CREATED
         binding.postStartGroup.visibility = if (postStartVisible) View.VISIBLE else View.GONE
 
         binding.btnTakeFinishPhoto.isEnabled =
-            race.status == RaceStatus.STARTED || race.status == RaceStatus.RECORDING
+            race.status != RaceStatus.EXPORTED
 
-        binding.btnFinishRace.isEnabled = race.status != RaceStatus.FINISHED && race.status != RaceStatus.EXPORTED
     }
 
     override fun onDestroyView() {
