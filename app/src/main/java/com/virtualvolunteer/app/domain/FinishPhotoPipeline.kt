@@ -139,6 +139,8 @@ internal class FinishPhotoPipeline(
                 }
 
                 pipelineLog("face#$faceNum descriptorCreated=true dim=${vec.size}")
+                val observedStr = EmbeddingMath.formatCommaSeparated(vec)
+                val blacklist = races.getEmbeddingMatchBlacklistSnapshot()
 
                 val baseSets = pool.participantEmbeddingSets(raceId)
                 val embeddingPool = baseSets.filter { it.hasEmbeddings }
@@ -152,7 +154,7 @@ internal class FinishPhotoPipeline(
                     "poolSize=${baseSets.size} embeddingPool=${embeddingPool.size} availableThisPhoto=${availableThisPhoto.size}",
                 )
 
-                val nearestAll = matcher.nearest(vec, embeddingPool)
+                val nearestAll = matcher.nearest(vec, observedStr, embeddingPool, blacklist)
                 val nId = nearestAll?.participant?.id
                 val nCos = nearestAll?.cosineSimilarity
                 val thr = matcher.threshold()
@@ -164,7 +166,7 @@ internal class FinishPhotoPipeline(
                 sb.appendLine("face#$faceNum nearestId=$nId cosine=$nCos thr=$thr")
 
                 val finishMatchOutcome =
-                    matcher.matchFinishQualityAware(vec, availableThisPhoto)
+                    matcher.matchFinishQualityAware(vec, observedStr, availableThisPhoto, blacklist)
                 val matchInAvailable = finishMatchOutcome.matchedParticipant
                 val finishDecisionLine =
                     finishMatchOutcome.formatFinishMatchDecisionLogLine(faceNum, rawFaceHeightPx)
@@ -191,12 +193,11 @@ internal class FinishPhotoPipeline(
                         pipelineLog("face#$faceNum thumbnailSaved=false err=${err.message}")
                     }
                     optionalFinishThumb = thumbFile.takeIf { it.exists() }
-                    val embeddingStr = EmbeddingMath.formatCommaSeparated(vec)
                     val globalId = races.resolveGlobalIdentity(vec)
                     val newId = races.insertParticipantHash(
                         RaceParticipantHashEntity(
                             raceId = raceId,
-                            embedding = embeddingStr,
+                            embedding = observedStr,
                             embeddingFailed = false,
                             sourcePhoto = photoFile.absolutePath,
                             faceThumbnailPath = if (thumbFile.exists()) thumbFile.absolutePath else null,
@@ -216,7 +217,7 @@ internal class FinishPhotoPipeline(
                     ?: baseSets.find { it.participant.id == resolvedParticipant.id }
                 val cos = when {
                     matchInAvailable != null && resolvedSet != null && resolvedSet.hasEmbeddings ->
-                        matcher.nearest(vec, listOf(resolvedSet))!!.cosineSimilarity
+                        matcher.nearest(vec, observedStr, listOf(resolvedSet), blacklist)!!.cosineSimilarity
                     matchInAvailable == null ->
                         1f
                     else ->
@@ -236,7 +237,7 @@ internal class FinishPhotoPipeline(
                     races.appendParticipantEmbeddingIfNew(
                         raceId = raceId,
                         participantId = resolvedParticipant.id,
-                        embeddingCommaSeparated = EmbeddingMath.formatCommaSeparated(vec),
+                        embeddingCommaSeparated = observedStr,
                         sourceType = EmbeddingSourceType.FINISH_AUTO,
                         sourcePhotoPath = photoFile.absolutePath,
                         qualityScore = cos,

@@ -51,4 +51,13 @@ interface FinishDetectionDao {
         """,
     )
     suspend fun reassignParticipant(raceId: String, oldParticipantId: Long, newParticipantId: Long): Int
+
+    @Query(
+        """
+        UPDATE finish_detections
+        SET participantHashId = :newParticipantId
+        WHERE id = :id
+        """,
+    )
+    suspend fun reassignParticipantForDetectionId(id: Long, newParticipantId: Long): Int
 }

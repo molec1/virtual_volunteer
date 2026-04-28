@@ -28,6 +28,7 @@ class VirtualVolunteerApp : Application() {
             participantEmbeddingDao = database.participantEmbeddingDao(),
             finishDetectionDao = database.finishDetectionDao(),
             identityRegistryDao = database.identityRegistryDao(),
+            embeddingMatchBlacklistDao = database.embeddingMatchBlacklistDao(),
         )
     }
 

@@ -90,15 +90,17 @@ internal class FinishPhotoDebugAnalyzer(
                 }
                 crop.recycle()
                 val preview = previewEmbedding(vec)
+                val observedStr = EmbeddingMath.formatCommaSeparated(vec)
+                val blacklist = races.getEmbeddingMatchBlacklistSnapshot()
                 val finishOutcome =
-                    matcher.matchFinishQualityAware(vec, availableThisPhoto)
+                    matcher.matchFinishQualityAware(vec, observedStr, availableThisPhoto, blacklist)
                 val picked = finishOutcome.matchedParticipant
-                val nearestDiag = matcher.nearest(vec, baseSets)
+                val nearestDiag = matcher.nearest(vec, observedStr, baseSets, blacklist)
                 val pickedSet = picked?.let { p -> baseSets.find { it.participant.id == p.id } }
                 val nearestId = picked?.id ?: nearestDiag?.participant?.id
                 val sim = when {
                     picked != null && pickedSet != null ->
-                        matcher.nearest(vec, listOf(pickedSet))!!.cosineSimilarity
+                        matcher.nearest(vec, observedStr, listOf(pickedSet), blacklist)!!.cosineSimilarity
                     nearestDiag != null -> nearestDiag.cosineSimilarity
                     else -> null
                 }

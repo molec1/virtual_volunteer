@@ -135,8 +135,9 @@ internal class StartPhotoIngestor(
                 }
 
                 if (!embeddingFailed) {
+                    val blacklist = races.getEmbeddingMatchBlacklistSnapshot()
                     val existingSets = races.listParticipantEmbeddingSets(raceId).filter { it.hasEmbeddings }
-                    val duplicateOf = matcher.match(vec, existingSets)
+                    val duplicateOf = matcher.match(vec, embeddingStr, existingSets, blacklist)
                     if (duplicateOf != null) {
                         if (thumbFile.exists()) thumbFile.delete()
                         pipelineLog(

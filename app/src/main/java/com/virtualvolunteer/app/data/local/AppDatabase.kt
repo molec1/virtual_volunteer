@@ -16,8 +16,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ParticipantEmbeddingEntity::class,
         FinishDetectionEntity::class,
         IdentityRegistryEntity::class,
+        EmbeddingMatchBlacklistEntity::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -28,6 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun participantEmbeddingDao(): ParticipantEmbeddingDao
     abstract fun finishDetectionDao(): FinishDetectionDao
     abstract fun identityRegistryDao(): IdentityRegistryDao
+    abstract fun embeddingMatchBlacklistDao(): EmbeddingMatchBlacklistDao
 
     companion object {
         private const val DB_NAME = "virtual_volunteer.db"
@@ -253,6 +255,30 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `embedding_match_blacklist` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `aHash` TEXT NOT NULL,
+                        `bHash` TEXT NOT NULL,
+                        `createdAtEpochMillis` INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_embedding_match_blacklist_aHash_bHash` ON `embedding_match_blacklist` (`aHash`, `bHash`)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_embedding_match_blacklist_aHash` ON `embedding_match_blacklist` (`aHash`)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_embedding_match_blacklist_bHash` ON `embedding_match_blacklist` (`bHash`)",
+                )
+            }
+        }
+
         private val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -297,6 +323,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_10_11,
                     MIGRATION_11_12,
                     MIGRATION_12_13,
+                    MIGRATION_13_14,
                 )
                 .fallbackToDestructiveMigration()
                 .build()

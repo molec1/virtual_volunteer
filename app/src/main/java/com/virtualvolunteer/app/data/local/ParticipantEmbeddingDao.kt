@@ -10,6 +10,9 @@ interface ParticipantEmbeddingDao {
     @Insert
     suspend fun insert(row: ParticipantEmbeddingEntity): Long
 
+    @Query("SELECT * FROM participant_embeddings WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): ParticipantEmbeddingEntity?
+
     @Query(
         """
         SELECT * FROM participant_embeddings 
@@ -41,6 +44,9 @@ interface ParticipantEmbeddingDao {
 
     @Query("UPDATE participant_embeddings SET sourcePhotoPath = NULL WHERE id = :id")
     suspend fun clearSourcePhotoPathByEmbeddingId(id: Long): Int
+
+    @Query("UPDATE participant_embeddings SET participantId = :newParticipantId WHERE id = :embeddingId")
+    suspend fun reassignEmbeddingToParticipant(embeddingId: Long, newParticipantId: Long): Int
 
     @Query("DELETE FROM participant_embeddings WHERE participantId = :participantId")
     suspend fun deleteAllForParticipant(participantId: Long): Int

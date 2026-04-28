@@ -193,6 +193,7 @@ private class ParticipantEmbeddingPreviewAdapter(
 
         fun bind(row: ParticipantEmbeddingPreviewRow) {
             val ctx = binding.root.context
+            val repo = (ctx.applicationContext as VirtualVolunteerApp).raceRepository
             val sourceLabel = ctx.getString(
                 when (row.sourceType) {
                     EmbeddingSourceType.START -> R.string.embedding_source_start
@@ -217,6 +218,19 @@ private class ParticipantEmbeddingPreviewAdapter(
                 }
             } else {
                 binding.embeddingPreviewImage.setImageResource(R.drawable.ic_person)
+            }
+
+            binding.btnDetachEmbedding.setOnClickListener {
+                MaterialAlertDialogBuilder(ctx)
+                    .setTitle(R.string.detach_embedding_confirm_title)
+                    .setMessage(R.string.detach_embedding_confirm_message)
+                    .setNegativeButton(R.string.action_cancel, null)
+                    .setPositiveButton(R.string.detach_embedding_confirm_action) { _, _ ->
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            repo.detachEmbeddingFromGroup(row.embeddingId)
+                        }
+                    }
+                    .show()
             }
         }
     }

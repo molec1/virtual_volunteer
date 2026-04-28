@@ -4,6 +4,9 @@ import android.content.Context
 import com.virtualvolunteer.app.data.files.FaceCropManifestDisk
 import com.virtualvolunteer.app.data.files.RaceEventPhotosLister
 import com.virtualvolunteer.app.data.local.EmbeddingSourceType
+import com.virtualvolunteer.app.data.local.EmbeddingMatchBlacklistDao
+import com.virtualvolunteer.app.data.local.EmbeddingMatchBlacklistEntity
+import com.virtualvolunteer.app.data.local.ParticipantEmbeddingEntity
 import com.virtualvolunteer.app.data.local.FinishDetectionDao
 import com.virtualvolunteer.app.data.local.IdentityRegistryDao
 import com.virtualvolunteer.app.data.local.IdentityRegistryEntity
@@ -16,6 +19,8 @@ import com.virtualvolunteer.app.data.local.RaceParticipantHashEntity
 import com.virtualvolunteer.app.domain.face.EmbeddingMath
 import com.virtualvolunteer.app.domain.identity.GlobalIdentityResolution
 import com.virtualvolunteer.app.domain.matching.FaceMatchEngine
+import com.virtualvolunteer.app.domain.matching.EmbeddingMatchBlacklistSnapshot
+import com.virtualvolunteer.app.domain.matching.EmbeddingPairKey
 import com.virtualvolunteer.app.domain.matching.ParticipantEmbeddingSet
 import com.virtualvolunteer.app.export.DeviceIdentitiesImportResult
 import com.virtualvolunteer.app.export.ParticipantsExportService
@@ -24,6 +29,7 @@ import com.virtualvolunteer.app.export.RaceCsvExport
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.io.File
+import java.util.concurrent.atomic.AtomicReference
 
 /** One image file for a participant in a race; [isFinishFrame] is true only for the protocol.xml finish photo. */
 data class ParticipantRacePhoto(
@@ -65,6 +71,7 @@ class RaceRepository(
     private val participantEmbeddingDao: ParticipantEmbeddingDao,
     private val finishDetectionDao: FinishDetectionDao,
     private val identityRegistryDao: IdentityRegistryDao,
+    private val embeddingMatchBlacklistDao: EmbeddingMatchBlacklistDao,
 ) {
 
     companion object {
@@ -155,6 +162,121 @@ class RaceRepository(
         raceDao,
         participantHashDao,
     )
+
+    private val blacklistSnapshotRef = AtomicReference<EmbeddingMatchBlacklistSnapshot?>(null)
+
+    suspend fun getEmbeddingMatchBlacklistSnapshot(): EmbeddingMatchBlacklistSnapshot {
+        blacklistSnapshotRef.get()?.let { return it }
+        val pairs = embeddingMatchBlacklistDao.listAllPairs()
+        val keys = pairs.mapTo(HashSet(pairs.size * 2 + 8)) { EmbeddingPairKey.canonicalKeyFromHashes(it.aHash, it.bHash) }
+        return EmbeddingMatchBlacklistSnapshot(keys).also { blacklistSnapshotRef.set(it) }
+    }
+
+    private fun invalidateEmbeddingMatchBlacklistSnapshot() {
+        blacklistSnapshotRef.set(null)
+    }
+
+    suspend fun blacklistEmbeddingPairsByStrings(anchorEmbedding: String, otherEmbeddings: List<String>): Int {
+        val now = System.currentTimeMillis()
+        val aHash = EmbeddingPairKey.hashEmbeddingString(anchorEmbedding)
+        val rows = otherEmbeddings
+            .mapNotNull { s -> s.trim().takeIf { it.isNotBlank() } }
+            .distinct()
+            .map { bStr ->
+                val bHash = EmbeddingPairKey.hashEmbeddingString(bStr)
+                val (x, y) = if (aHash <= bHash) aHash to bHash else bHash to aHash
+                EmbeddingMatchBlacklistEntity(aHash = x, bHash = y, createdAtEpochMillis = now)
+            }
+        if (rows.isEmpty()) return 0
+        embeddingMatchBlacklistDao.insertAll(rows)
+        invalidateEmbeddingMatchBlacklistSnapshot()
+        return rows.size
+    }
+
+    suspend fun findEmbeddingIdForParticipantSourcePhoto(participantId: Long, sourcePhotoPath: String): Long? {
+        if (sourcePhotoPath.isBlank()) return null
+        val targetCanonical = runCatching { File(sourcePhotoPath).canonicalPath }.getOrNull() ?: return null
+        val rows = participantEmbeddingDao.listForParticipant(participantId)
+        for (r in rows) {
+            val sp = r.sourcePhotoPath ?: continue
+            val c = runCatching { File(sp).canonicalPath }.getOrNull() ?: continue
+            if (c == targetCanonical) return r.id
+        }
+        return null
+    }
+
+    /**
+     * Detaches one embedding from a linked identity "group":
+     * - creates a new protocol participant row in the same race (no registry link, no scan code),
+     * - moves this embedding row to the new participant,
+     * - blacklists the detached embedding against all other embeddings in the old group (and registry vector, if any),
+     * - refreshes protocol XML for the race.
+     */
+    suspend fun detachEmbeddingFromGroup(embeddingId: Long) {
+        val emb = participantEmbeddingDao.getById(embeddingId) ?: return
+        val owner = participantHashDao.getById(emb.participantId) ?: return
+
+        val registryId = owner.identityRegistryId
+        val groupParticipants: List<RaceParticipantHashEntity> =
+            if (registryId != null) participantHashDao.listHashesForIdentityRegistry(registryId) else listOf(owner)
+
+        val otherEmbeddingStrings = ArrayList<String>(64)
+        for (p in groupParticipants) {
+            for (e in participantEmbeddingDao.listForParticipant(p.id)) {
+                if (e.id == emb.id) continue
+                if (e.embedding.isNotBlank()) otherEmbeddingStrings.add(e.embedding)
+            }
+        }
+        if (registryId != null) {
+            val reg = identityRegistryDao.getById(registryId)
+            if (reg != null && reg.embedding.isNotBlank()) otherEmbeddingStrings.add(reg.embedding)
+        }
+        blacklistEmbeddingPairsByStrings(emb.embedding, otherEmbeddingStrings)
+
+        // Create new protocol row in the same race. Keep thumbnails to make it visible, but
+        // remove scan + registry link so it won't be auto-merged back.
+        val sourcePhoto = emb.sourcePhotoPath?.takeIf { it.isNotBlank() } ?: owner.sourcePhoto
+        val newRow = RaceParticipantHashEntity(
+            raceId = owner.raceId,
+            embedding = "",
+            embeddingFailed = true,
+            sourcePhoto = sourcePhoto,
+            faceThumbnailPath = owner.faceThumbnailPath,
+            scannedPayload = null,
+            registryInfo = null,
+            identityRegistryId = null,
+            displayName = null,
+            firstFinishSeenAtEpochMillis = null,
+            protocolFinishTimeEpochMillis = null,
+            primaryThumbnailPhotoPath = owner.primaryThumbnailPhotoPath,
+            createdAtEpochMillis = emb.createdAtEpochMillis,
+        )
+        val newParticipantId = participantHashDao.insert(newRow)
+
+        participantEmbeddingDao.reassignEmbeddingToParticipant(embeddingId = emb.id, newParticipantId = newParticipantId)
+
+        // If this embedding came from a finish photo, also move the corresponding detection evidence
+        // so the protocol row separation is visible in the race participant photo list and finish times.
+        val src = emb.sourcePhotoPath?.takeIf { it.isNotBlank() }
+        if (src != null) {
+            val targetCanonical = runCatching { File(src).canonicalPath }.getOrNull()
+            if (targetCanonical != null) {
+                val dets = finishDetectionDao.listForParticipantSorted(owner.raceId, owner.id)
+                for (d in dets) {
+                    val dCanon = runCatching { File(d.sourcePhotoPath).canonicalPath }.getOrNull()
+                    if (dCanon == targetCanonical) {
+                        finishDetectionDao.reassignParticipantForDetectionId(d.id, newParticipantId)
+                    }
+                }
+            }
+        }
+
+        embeddingWriter.syncParticipantPrimaryEmbeddingField(owner.id)
+        embeddingWriter.syncParticipantPrimaryEmbeddingField(newParticipantId)
+        protocolFinish.recomputeProtocolFinishForParticipant(owner.raceId, owner.id)
+        protocolFinish.recomputeProtocolFinishForParticipant(owner.raceId, newParticipantId)
+        protocolFinish.refreshProtocolXml(owner.raceId)
+    }
 
     fun observeAllRaces(): Flow<List<RaceEntity>> = raceDao.observeAllRaces()
 

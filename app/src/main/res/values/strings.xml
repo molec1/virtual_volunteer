@@ -144,6 +144,10 @@
     <string name="embedding_source_finish_auto">Finish (auto)</string>
     <string name="embedding_source_finish_manual_link">Finish (linked)</string>
     <string name="participant_embedding_preview_caption">%1$s\nRace %2$s…</string>
+    <string name="action_detach_embedding_cd">Detach from group</string>
+    <string name="detach_embedding_confirm_title">Detach this face?</string>
+    <string name="detach_embedding_confirm_message">This will split it into a separate protocol entry and prevent matching it back to the current group.</string>
+    <string name="detach_embedding_confirm_action">Detach</string>
     <string name="camera_capture_title">Capture photos</string>
     <string name="camera_capture_capture">Capture</string>
     <string name="camera_capture_done">Done</string>

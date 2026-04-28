@@ -14,6 +14,7 @@ import android.widget.Toast
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.mlkit.vision.face.Face
 import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.VirtualVolunteerApp
@@ -38,6 +39,7 @@ class ParticipantProtocolPhotoViewerDialogFragment : DialogFragment() {
     private val binding get() = _binding!!
 
     private var displayedBitmap: Bitmap? = null
+    private var detachEmbeddingId: Long? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,6 +65,33 @@ class ParticipantProtocolPhotoViewerDialogFragment : DialogFragment() {
             }
         }
 
+        binding.btnDetach.setOnClickListener {
+            val embId = detachEmbeddingId ?: return@setOnClickListener
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.detach_embedding_confirm_title)
+                .setMessage(R.string.detach_embedding_confirm_message)
+                .setNegativeButton(R.string.action_cancel, null)
+                .setPositiveButton(R.string.detach_embedding_confirm_action) { _, _ ->
+                    val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        try {
+                            repo.detachEmbeddingFromGroup(embId)
+                            withContext(Dispatchers.Main) {
+                                if (_binding != null) {
+                                    Toast.makeText(requireContext(), R.string.detach_embedding_confirm_action, Toast.LENGTH_SHORT).show()
+                                    dismiss()
+                                }
+                            }
+                        } catch (t: Throwable) {
+                            withContext(Dispatchers.Main) {
+                                if (_binding != null) Toast.makeText(requireContext(), R.string.import_failed, Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }
+                .show()
+        }
+
         loadPhoto(path)
     }
 
@@ -75,6 +104,7 @@ class ParticipantProtocolPhotoViewerDialogFragment : DialogFragment() {
         val raceId = requireArguments().getString(ARG_RACE_ID).orEmpty()
         val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
         lifecycleScope.launch(Dispatchers.Default) {
+            val embId = if (participantId > 0L) repo.findEmbeddingIdForParticipantSourcePhoto(participantId, path) else null
             val bmp = PreviewImageLoader.loadThumbnailOriented(path, maxSidePx = 3200)
             if (bmp == null) {
                 withContext(Dispatchers.Main) {
@@ -119,6 +149,8 @@ class ParticipantProtocolPhotoViewerDialogFragment : DialogFragment() {
                     toShow.recycle()
                     return@withContext
                 }
+                detachEmbeddingId = embId
+                binding.btnDetach.visibility = if (embId != null) View.VISIBLE else View.GONE
                 displayedBitmap = toShow
                 binding.photoView.setImageBitmap(toShow)
             }

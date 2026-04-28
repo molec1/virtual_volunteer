@@ -85,7 +85,7 @@ Paths are from `app/src/main/java/com/virtualvolunteer/app/` unless noted as `re
 | **Participant / race photos** (grid + full-screen zoom/share) | `ui/racedetail/ParticipantPhotosBottomSheet.kt`, `ParticipantRacePhotoAdapter.kt`, `RaceParticipantPhotosBottomSheet.kt`, `ParticipantProtocolPhotoViewerDialogFragment.kt` | `item_participant_race_photo.xml`, `dialog_participant_protocol_photo_viewer.xml` |
 | **Manual finish** | `ui/racedetail/ManualFinishInputBottomSheet.kt` | `item_manual_finish_photo.xml` |
 | **Identity registry** | `ui/identity/IdentityRegistryFragment.kt`, `IdentityRegistryAdapter.kt` | `fragment_identity_registry.xml`, `item_identity_registry_row.xml` |
-| **Camera** (multi-shot) | `ui/camera/CameraCaptureFragment.kt` | — (fragment host in nav) |
+| **Camera** (multi-shot) | `ui/camera/CameraCaptureFragment.kt` | `fragment_camera_capture.xml` (PreviewView + controls + optional head-size guide), `res/drawable/ic_head_size_guide.xml` |
 | **Barcode scan** | `ui/scan/BarcodeScanActivity.kt` | — |
 | **Shared UI helpers** | `ui/util/RaceUiFormatter.kt`, `PreviewImageLoader.kt` | — |
 

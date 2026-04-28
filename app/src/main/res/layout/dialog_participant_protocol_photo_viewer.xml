@@ -42,5 +42,15 @@
             android:contentDescription="@string/race_event_photo_viewer_share_cd"
             android:src="@android:drawable/ic_menu_share"
             app:tint="@color/white" />
+
+        <ImageButton
+            android:id="@+id/btnDetach"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/action_detach_embedding_cd"
+            android:src="@drawable/ic_link_off"
+            android:visibility="gone"
+            app:tint="@color/white" />
     </LinearLayout>
 </FrameLayout>

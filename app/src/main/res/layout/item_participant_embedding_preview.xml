@@ -7,14 +7,32 @@
     android:gravity="center_horizontal"
     android:orientation="vertical">
 
-    <ImageView
-        android:id="@+id/embeddingPreviewImage"
-        android:layout_width="88dp"
-        android:layout_height="88dp"
-        android:background="@drawable/bg_placeholder_photo"
-        android:contentDescription="@string/participant_embedding_preview_cd"
-        android:scaleType="centerCrop"
-        tools:ignore="ImageContrastCheck" />
+    <FrameLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content">
+
+        <ImageView
+            android:id="@+id/embeddingPreviewImage"
+            android:layout_width="88dp"
+            android:layout_height="88dp"
+            android:background="@drawable/bg_placeholder_photo"
+            android:contentDescription="@string/participant_embedding_preview_cd"
+            android:scaleType="centerCrop"
+            tools:ignore="ImageContrastCheck" />
+
+        <ImageButton
+            android:id="@+id/btnDetachEmbedding"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="4dp"
+            android:background="@android:color/transparent"
+            android:contentDescription="@string/action_detach_embedding_cd"
+            android:padding="2dp"
+            android:src="@drawable/ic_link_off"
+            tools:ignore="TouchTargetSizeCheck" />
+
+    </FrameLayout>
 
     <TextView
         android:id="@+id/embeddingPreviewCaption"
