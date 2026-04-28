@@ -18,23 +18,29 @@ import java.io.File
  */
 class IdentityRegistryAdapter(
     private val onItemClick: (participantId: Long) -> Unit,
+    private val onDeleteClick: (registryId: Long) -> Unit,
 ) : ListAdapter<IdentityRegistryEntity, IdentityRegistryAdapter.VH>(DIFF) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val inflater = LayoutInflater.from(parent.context)
         val binding = ItemIdentityRegistryRowBinding.inflate(inflater, parent, false)
-        return VH(binding, onItemClick)
+        return VH(binding, onItemClick, onDeleteClick)
     }
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         holder.bind(getItem(position))
     }
 
-    class VH(private val binding: ItemIdentityRegistryRowBinding, private val onItemClick: (Long) -> Unit) :
+    class VH(
+        private val binding: ItemIdentityRegistryRowBinding,
+        private val onItemClick: (Long) -> Unit,
+        private val onDeleteClick: (Long) -> Unit,
+    ) :
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(row: IdentityRegistryEntity) {
-            binding.root.setOnClickListener { onItemClick(row.id) }
+            binding.registryRowMain.setOnClickListener { onItemClick(row.id) }
+            binding.btnDeleteIdentity.setOnClickListener { onDeleteClick(row.id) }
 
             val thumbPath = row.primaryThumbnailPhotoPath?.takeIf { File(it).exists() }
             if (!thumbPath.isNullOrBlank()) {

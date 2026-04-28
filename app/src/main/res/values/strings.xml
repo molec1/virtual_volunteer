@@ -78,6 +78,7 @@
     <string name="btn_delete_race_cd">Delete race</string>
     <string name="btn_scan_code_cd">Scan QR or barcode</string>
     <string name="btn_remove_participant_cd">Remove participant</string>
+    <string name="btn_delete_identity_cd">Delete device identity</string>
     <string name="toast_race_deleted">Race deleted</string>
     <string name="participant_photos_sheet_title">Photos in this race</string>
     <string name="participant_photos_empty">No image files found for this participant.</string>

@@ -1,6 +1,7 @@
 package com.virtualvolunteer.app.ui.identity
 
 import android.os.Bundle
+import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -13,6 +14,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.VirtualVolunteerApp
 import com.virtualvolunteer.app.databinding.FragmentIdentityRegistryBinding
@@ -88,25 +90,44 @@ class IdentityRegistryFragment : Fragment() {
         val spanCount = if (resources.configuration.screenWidthDp >= 600) 4 else 2
         binding.registryRecycler.layoutManager = GridLayoutManager(requireContext(), spanCount)
 
-        val adapter = IdentityRegistryAdapter { registryId ->
-            viewLifecycleOwner.lifecycleScope.launch {
-                val participantHashId = withContext(Dispatchers.IO) {
-                    repo.resolveParticipantHashIdForRegistry(registryId)
+        val adapter = IdentityRegistryAdapter(
+            onItemClick = { registryId ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val participantHashId = withContext(Dispatchers.IO) {
+                        repo.resolveParticipantHashIdForRegistry(registryId)
+                    }
+                    if (participantHashId != null) {
+                        findNavController().navigate(
+                            R.id.action_identityRegistryFragment_to_participantDetailFragment,
+                            bundleOf(ParticipantDetailFragment.ARG_PARTICIPANT_ID to participantHashId),
+                        )
+                    } else {
+                        Toast.makeText(
+                            requireContext(),
+                            R.string.identity_registry_open_detail_failed,
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
                 }
-                if (participantHashId != null) {
-                    findNavController().navigate(
-                        R.id.action_identityRegistryFragment_to_participantDetailFragment,
-                        bundleOf(ParticipantDetailFragment.ARG_PARTICIPANT_ID to participantHashId),
-                    )
-                } else {
-                    Toast.makeText(
-                        requireContext(),
-                        R.string.identity_registry_open_detail_failed,
-                        Toast.LENGTH_LONG,
-                    ).show()
+            },
+            onDeleteClick = { registryId ->
+                val dialog = MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(R.string.participant_detail_delete_identity_title)
+                    .setMessage(R.string.participant_detail_delete_identity_message)
+                    .setNegativeButton(R.string.action_cancel, null)
+                    .setPositiveButton(R.string.participant_detail_delete_identity_confirm) { _, _ ->
+                        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+                            repo.deleteIdentityRegistryUnlinkKeepProtocol(registryId)
+                        }
+                    }
+                    .create()
+                dialog.setOnShowListener {
+                    dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
+                        ?.setTextColor(Color.RED)
                 }
-            }
-        }
+                dialog.show()
+            },
+        )
         binding.registryRecycler.adapter = adapter
 
         binding.btnExportParticipantsJson.setOnClickListener {
