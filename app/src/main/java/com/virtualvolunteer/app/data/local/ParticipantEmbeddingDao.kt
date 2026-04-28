@@ -41,4 +41,7 @@ interface ParticipantEmbeddingDao {
 
     @Query("UPDATE participant_embeddings SET sourcePhotoPath = NULL WHERE id = :id")
     suspend fun clearSourcePhotoPathByEmbeddingId(id: Long): Int
+
+    @Query("DELETE FROM participant_embeddings WHERE participantId = :participantId")
+    suspend fun deleteAllForParticipant(participantId: Long): Int
 }

@@ -44,6 +44,50 @@ class RaceDetailOfflineTestActions(
         }
     }
 
+    fun onReprocessRaceFromDiskClicked() {
+        val ctx = fragment.requireContext()
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle(R.string.reprocess_race_title)
+            .setMessage(R.string.reprocess_race_message)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.reprocess_race_confirm) { _, _ ->
+                fragment.lifecycleScope.launch(Dispatchers.IO) {
+                    val result = photoProcessor.reprocessRaceFromStoredEventPhotos(raceId)
+                    withContext(Dispatchers.Main) {
+                        result.onSuccess { stats ->
+                            Toast.makeText(
+                                ctx,
+                                ctx.getString(
+                                    R.string.reprocess_race_success_format,
+                                    stats.startPhotosProcessed,
+                                    stats.startFacesInserted,
+                                    stats.finishPhotosProcessed,
+                                    stats.finishPipelineNewRows,
+                                    stats.identityHintsRestored,
+                                    stats.identityHintsCaptured,
+                                    stats.startIngestFailures,
+                                    stats.finishIngestFailures,
+                                ),
+                                Toast.LENGTH_LONG,
+                            ).show()
+                            Log.i(
+                                logTag,
+                                "reprocessRace startPhotos=${stats.startPhotosProcessed} " +
+                                    "startFaces=${stats.startFacesInserted} startIngestFail=${stats.startIngestFailures} " +
+                                    "finishPhotos=${stats.finishPhotosProcessed} " +
+                                    "finishNew=${stats.finishPipelineNewRows} finishIngestFail=${stats.finishIngestFailures} " +
+                                    "hints=${stats.identityHintsCaptured} restored=${stats.identityHintsRestored}",
+                            )
+                        }.onFailure {
+                            Toast.makeText(ctx, R.string.reprocess_race_failed, Toast.LENGTH_SHORT).show()
+                            Log.w(logTag, "reprocess race failed", it)
+                        }
+                    }
+                }
+            }
+            .show()
+    }
+
     fun launchSingleFinishPhotoDebug(uri: Uri) {
         fragment.lifecycleScope.launch(Dispatchers.IO) {
             val ctx = fragment.requireContext().applicationContext

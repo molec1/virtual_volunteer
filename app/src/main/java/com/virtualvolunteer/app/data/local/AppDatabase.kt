@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FinishDetectionEntity::class,
         IdentityRegistryEntity::class,
     ],
-    version = 11,
+    version = 13,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -216,6 +216,43 @@ abstract class AppDatabase : RoomDatabase() {
         /**
          * Drops [RaceEntity] latitude / longitude; adds [RaceEntity.listThumbnailPath] for the main-menu preview cache.
          */
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE races ADD COLUMN preferredBackCameraId TEXT")
+            }
+        }
+
+        /** Drops `preferredBackCameraId` from `races` (camera picker removed). */
+        private val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE `races_new` (
+                        `id` TEXT NOT NULL,
+                        `createdAtEpochMillis` INTEGER NOT NULL,
+                        `startedAtEpochMillis` INTEGER,
+                        `finishedAtEpochMillis` INTEGER,
+                        `status` TEXT NOT NULL,
+                        `folderPath` TEXT NOT NULL,
+                        `lastPhotoPath` TEXT,
+                        `listThumbnailPath` TEXT,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO races_new (id, createdAtEpochMillis, startedAtEpochMillis, finishedAtEpochMillis, status, folderPath, lastPhotoPath, listThumbnailPath)
+                    SELECT id, createdAtEpochMillis, startedAtEpochMillis, finishedAtEpochMillis, status, folderPath, lastPhotoPath, listThumbnailPath
+                    FROM races
+                    """.trimIndent(),
+                )
+                db.execSQL("DROP TABLE races")
+                db.execSQL("ALTER TABLE races_new RENAME TO races")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_races_createdAtEpochMillis` ON `races`(`createdAtEpochMillis`)")
+            }
+        }
+
         private val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -258,6 +295,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_8_9,
                     MIGRATION_9_10,
                     MIGRATION_10_11,
+                    MIGRATION_11_12,
+                    MIGRATION_12_13,
                 )
                 .fallbackToDestructiveMigration()
                 .build()

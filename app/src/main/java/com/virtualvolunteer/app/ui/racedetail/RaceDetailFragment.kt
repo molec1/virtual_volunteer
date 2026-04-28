@@ -1,8 +1,6 @@
 package com.virtualvolunteer.app.ui.racedetail
 
 import android.Manifest
-import android.app.Activity
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
@@ -13,6 +11,9 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanIntentResult
+import com.journeyapps.barcodescanner.ScanOptions
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.lifecycle.Lifecycle
@@ -62,12 +63,9 @@ class RaceDetailFragment : Fragment() {
 
     private var latestRace: RaceEntity? = null
 
-    private val barcodeScanLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult(),
-    ) { result ->
-        val pid = participantActions.consumePendingScanParticipantId()
-        if (result.resultCode != Activity.RESULT_OK || pid == null) return@registerForActivityResult
-        val text = extractScanText(result.data) ?: return@registerForActivityResult
+    private val barcodeScanLauncher = registerForActivityResult(ScanContract()) { result: ScanIntentResult ->
+        val pid = participantActions.consumePendingScanParticipantId() ?: return@registerForActivityResult
+        val text = result.contents?.trim()?.takeIf { it.isNotEmpty() } ?: return@registerForActivityResult
         lifecycleScope.launch(Dispatchers.IO) {
             (requireActivity().application as VirtualVolunteerApp).raceRepository.updateParticipantScan(
                 raceId,
@@ -123,9 +121,24 @@ class RaceDetailFragment : Fragment() {
     ) { uris ->
         if (uris.isNullOrEmpty()) return@registerForActivityResult
         lifecycleScope.launch(Dispatchers.IO) {
-            photoImports.importFinishPhotoUris(uris)
+            val stats = photoImports.importFinishPhotoUris(uris)
             withContext(Dispatchers.Main) {
-                // Removed Toast confirmation
+                Toast.makeText(
+                    requireContext(),
+                    getString(
+                        R.string.import_finish_summary_toast,
+                        stats.ingestCompleted,
+                        stats.uriCount,
+                        stats.errorCount,
+                        stats.copyFailures,
+                        stats.ingestExceptionFailures,
+                        stats.photosWithNoFaces,
+                        stats.photosDecodeFailed,
+                        stats.totalFacesDetected,
+                        stats.finishRowsAdded,
+                    ),
+                    Toast.LENGTH_LONG,
+                ).show()
             }
         }
     }
@@ -157,7 +170,9 @@ class RaceDetailFragment : Fragment() {
             raceId = raceId,
             runWithCameraPermission = { action -> runWithCameraPermission(action) },
             launchBarcodeScanActivity = {
-                barcodeScanLauncher.launch(Intent(requireContext(), BarcodeScanActivity::class.java))
+                val options = ScanOptions()
+                    .setCaptureActivity(BarcodeScanActivity::class.java)
+                barcodeScanLauncher.launch(options)
             },
         )
         raceFlowActions = RaceDetailRaceFlowActions(this, raceId)
@@ -257,6 +272,7 @@ class RaceDetailFragment : Fragment() {
             pickMultipleFinishDocuments.launch(arrayOf("image/*"))
         }
         binding.btnBuildTestProtocol.setOnClickListener { offlineTestActions.onBuildTestProtocolClicked() }
+        binding.btnReprocessRace.setOnClickListener { offlineTestActions.onReprocessRaceFromDiskClicked() }
         binding.btnTestSingleFinishPhoto.setOnClickListener {
             pickSingleFinishDocument.launch(arrayOf("image/*"))
         }
@@ -387,4 +403,5 @@ class RaceDetailFragment : Fragment() {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
+
 }

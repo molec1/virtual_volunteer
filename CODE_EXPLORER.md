@@ -19,7 +19,7 @@ Paths are from `app/src/main/java/com/virtualvolunteer/app/` unless noted as `re
 | **Dashboard list row** (read model, not a table) | `ParticipantDashboardRow` / `ParticipantDashboardDbRow` | `data/local/ParticipantDashboardRow.kt`, `ParticipantDashboardDbRow.kt` |
 
 **Schema + migrations:** `data/local/AppDatabase.kt`, `data/local/Converters.kt`  
-**On-disk layout:** `data/files/RacePaths.kt`, `data/files/RaceEventPhotosLister.kt` (full-frame start/finish listing for the race-detail gallery)  
+**On-disk layout:** `data/files/RacePaths.kt`, `data/files/FaceCropManifestDisk.kt` (`face_crop_manifest.xml`: face crop provenance for exact overlays), `data/files/RaceEventPhotosLister.kt` (full-frame start/finish listing for the race-detail gallery)  
 **Mirrored race + protocol XML:** `data/xml/RaceXmlIo.kt`, `data/xml/RaceXmlSnapshot.kt`, `data/xml/ProtocolXmlIo.kt`
 
 ---
@@ -29,13 +29,15 @@ Paths are from `app/src/main/java/com/virtualvolunteer/app/` unless noted as `re
 | Responsibility | File |
 |----------------|------|
 | CRUD, flows, exports, orchestration (public façade; delegates to helpers below) | `data/repository/RaceRepository.kt` |
+| Full disk replay (rebuild participants + finish matching from stored originals) | `RaceRepository.executeFullDiskPhotoReprocess`, `RaceRepositoryDiskReprocess.kt`, `RaceReprocessResult.kt`, `RacePhotoProcessor.reprocessRaceFromStoredEventPhotos` |
 | Race lifecycle (create/status/start time/offline start/delete folder), `race.xml`, list-thumbnail hook on last photo | `data/repository/RaceLifecycleStore.kt` |
 | Per-race embedding strings for matching (`participant_embeddings` + legacy column fallback) | `data/repository/RaceParticipantEmbeddingReader.kt` |
 | Delete start/finish event photo: detections, protocol recompute, paths, file, thumbnails, `protocol.xml` | `data/repository/RaceEventPhotoDeletionService.kt` |
 | Participant ↔ races history (linked by registry when applicable) + `ParticipantRaceSummary` | `data/repository/ParticipantRaceHistoryReader.kt`, `data/repository/ParticipantRaceSummary.kt` |
+| Manual strip of embeddings / delete `identity_registry` while keeping protocol rows | `data/repository/ParticipantFaceDataMutations.kt` (`ParticipantEmbeddingPreviewRow`, `RaceRepository` façade methods) |
 | Race XML mirror write | `data/repository/RaceXmlWriter.kt` |
 | Race list thumbnail + start-photo path checks | `data/repository/RaceListThumbnailHelper.kt` |
-| Protocol finish aggregation + `protocol.xml` refresh | `data/repository/RaceProtocolFinishSync.kt` |
+| Protocol finish aggregation + `protocol.xml` refresh | `data/repository/RaceProtocolFinishSync.kt`, `ProtocolFinishPhotoPicker.kt` (which finish photo matches protocol time) |
 | Scan-code registry + participant merge / consolidation | `data/repository/ParticipantScanMergeCoordinator.kt` |
 | Global identity + cosine-ranked scan lookup + registry thumbnail backfill | `data/repository/IdentityAssignmentHelper.kt` |
 | Dashboard finish ranks (DB rows → UI rows) | `data/repository/RaceDashboardFinishRanks.kt` |
@@ -45,6 +47,7 @@ Paths are from `app/src/main/java/com/virtualvolunteer/app/` unless noted as `re
 | Start + finish photo orchestration (delegates to ingest/pipeline/debug/test helpers) | `domain/RacePhotoProcessor.kt`, `domain/RacePhotoProcessorFactory.kt` (construct processor + detector/embedder stack) |
 | Start photo ingest (detect, crop, embed, insert, offline start) | `domain/StartPhotoIngestor.kt` |
 | Finish photo pipeline (match pool, record detection, optional new participant) | `domain/FinishPhotoPipeline.kt` |
+| Finish photo analysis queue (CameraX path: save JPEG then background ingest) | `domain/FinishPhotoAnalysisQueue.kt`, `VirtualVolunteerApp.finishPhotoAnalysisQueue` |
 | Finish photo debug report (no persistence) | `domain/FinishPhotoDebugAnalyzer.kt` |
 | Offline finish-folder test protocol log | `domain/FinishFolderTestProtocolBuilder.kt` |
 | Finish batch result type | `domain/FinishProcessResult.kt` |
@@ -53,7 +56,7 @@ Paths are from `app/src/main/java/com/virtualvolunteer/app/` unless noted as `re
 | **Identity** after start embedding | `domain/identity/GlobalIdentityResolution.kt` |
 | **Time** (EXIF, etc.) | `domain/time/PhotoTimestampResolver.kt` |
 | **Debug** (finish photo diagnostics) | `domain/debug/FinishPhotoDebugReport.kt` |
-| **Face / ML** | `domain/face/`: `MlKitFaceDetector.kt`, `TfliteFaceEmbedder.kt` / `FaceEmbedder.kt`, `OrientedPhotoBitmap.kt`, `FaceThumbnailSaver.kt`, `FaceCropBounds.kt`, `EmbeddingMath.kt`, `FaceDebugOverlay.kt` |
+| **Face / ML** | `domain/face/`: `MlKitFaceDetector.kt`, `TfliteFaceEmbedder.kt` / `FaceEmbedder.kt`, `FaceCropLuminanceNormalizer.kt`, `OrientedPhotoBitmap.kt`, `FaceThumbnailSaver.kt`, `FaceCropBounds.kt`, `EmbeddingMath.kt`, `FaceDebugOverlay.kt` |
 | **Face embedding regression (JVM)** | `:face-embedding-regression` (`LocalFaceCropEmbedder`, `FaceEmbeddingRegressionMain`, `FaceJvmSamePersonRegression`, report); root **`./gradlew faceEmbeddingRegressionTest`** — scans **`testdata/face_matching/same_persons/<id>/`** if present else **`testdata/face_matching/<id>/`** |
 | **Face embedding regression (connected androidTest)** | `app/src/androidTest/java/com/virtualvolunteer/app/regression/` (`ConnectedFaceEmbeddingRegressionTest`, comparator + report); **`prepareFaceMatchingAndroidTestAssets`** copies **`testdata/face_matching/`** into `app/build/generated/…` for the test APK |
 | **Future** placeholder for known participants | `domain/future/FutureKnownParticipant.kt` |
@@ -77,9 +80,9 @@ Paths are from `app/src/main/java/com/virtualvolunteer/app/` unless noted as `re
 |------|--------|--------------------------------------|
 | **Race list** | `ui/racelist/RaceListFragment.kt`, `RaceListAdapter.kt` | `fragment_race_list.xml`, `race_row.xml` |
 | **Race detail** (orchestrates UI; imports/share/debug helpers alongside) | `ui/racedetail/RaceDetailFragment.kt`, `ParticipantDashboardAdapter.kt`, `RaceDetailPhotoBulkImporter.kt`, `RaceDetailShareHelper.kt`, `RaceDetailFinishDebugFormat.kt`, `RaceDetailParticipantSectionUi.kt`, `RaceDetailCollapsibleSectionsController.kt`, `RaceEventPhotosGridAdapter.kt`, `RaceEventPhotoViewerDialogFragment.kt` | `fragment_race_detail.xml`, `participant_dashboard_row.xml`, `item_race_event_photo_thumb.xml`, `dialog_race_event_photo_viewer.xml` |
-| **Participant detail** | `ui/racedetail/ParticipantDetailFragment.kt` | `fragment_participant_detail.xml`, `item_participant_detail_race_row.xml` |
+| **Participant detail** (embedding previews, remove face data, delete device identity) | `ui/racedetail/ParticipantDetailFragment.kt` | `fragment_participant_detail.xml`, `item_participant_detail_race_row.xml`, `item_participant_embedding_preview.xml` |
 | **Face lookup** (assign scan from cosine-ranked codes) | `ui/racedetail/ParticipantLookupBottomSheet.kt`, `ParticipantLookupAdapter.kt`, `ParticipantLookupEmbeddings.kt` | `item_participant_lookup_result.xml` |
-| **Participant / race photos** | `ui/racedetail/ParticipantPhotosBottomSheet.kt`, `ParticipantRacePhotoAdapter.kt`, `RaceParticipantPhotosBottomSheet.kt` | — (uses race-local paths; list thumbnails) |
+| **Participant / race photos** (grid + full-screen zoom/share) | `ui/racedetail/ParticipantPhotosBottomSheet.kt`, `ParticipantRacePhotoAdapter.kt`, `RaceParticipantPhotosBottomSheet.kt`, `ParticipantProtocolPhotoViewerDialogFragment.kt` | `item_participant_race_photo.xml`, `dialog_participant_protocol_photo_viewer.xml` |
 | **Manual finish** | `ui/racedetail/ManualFinishInputBottomSheet.kt` | `item_manual_finish_photo.xml` |
 | **Identity registry** | `ui/identity/IdentityRegistryFragment.kt`, `IdentityRegistryAdapter.kt` | `fragment_identity_registry.xml`, `item_identity_registry_row.xml` |
 | **Camera** (multi-shot) | `ui/camera/CameraCaptureFragment.kt` | — (fragment host in nav) |

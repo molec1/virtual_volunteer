@@ -328,6 +328,14 @@
                         android:text="@string/btn_build_test_protocol" />
 
                     <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnReprocessRace"
+                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/btn_reprocess_race" />
+
+                    <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnTestSingleFinishPhoto"
                         style="@style/Widget.VirtualVolunteer.Button.Secondary"
                         android:layout_width="match_parent"

@@ -9,7 +9,7 @@ import com.virtualvolunteer.app.domain.face.EmbeddingMath
  * cosine among its vectors.
  */
 class FaceMatchEngine(
-    private val minCosineSimilarity: Float = DEFAULT_MIN_COSINE,
+    private val minCosineSimilarity: Float = FinishFaceMatchPolicy.AUTO_MATCH_THRESHOLD,
 ) {
 
     private fun bestCosineForParticipantSet(queries: List<FloatArray>, set: ParticipantEmbeddingSet): Float? {
@@ -39,6 +39,17 @@ class FaceMatchEngine(
     fun match(observed: FloatArray, pool: List<ParticipantEmbeddingSet>): RaceParticipantHashEntity? {
         val n = nearest(observed, pool) ?: return null
         return if (n.cosineSimilarity >= minCosineSimilarity) n.participant else null
+    }
+
+    /**
+     * Finish-line matching: [FinishFaceMatchPolicy] ([FinishFaceMatchPolicy.AUTO_MATCH_THRESHOLD] only).
+     */
+    fun matchFinishQualityAware(
+        observed: FloatArray,
+        pool: List<ParticipantEmbeddingSet>,
+    ): FinishFaceMatchOutcome {
+        val ranked = rankedByCosine(observed, pool, topN = 2)
+        return FinishFaceMatchPolicy.evaluate(pool.size, ranked)
     }
 
     /** Find top N matches, sorted best-first by [MatchCandidate.cosineSimilarity]. */
@@ -106,7 +117,7 @@ class FaceMatchEngine(
     fun threshold(): Float = minCosineSimilarity
 
     companion object {
-        /** Conservative default; tune per device/lighting for field tests. */
-        const val DEFAULT_MIN_COSINE: Float = 0.65f
+        /** Same floor as [FinishFaceMatchPolicy.AUTO_MATCH_THRESHOLD] (start scans / disk reattach). */
+        const val DEFAULT_MIN_COSINE: Float = FinishFaceMatchPolicy.AUTO_MATCH_THRESHOLD
     }
 }

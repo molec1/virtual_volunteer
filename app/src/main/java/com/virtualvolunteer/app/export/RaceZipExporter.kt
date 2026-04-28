@@ -21,6 +21,7 @@ object RaceZipExporter {
         ZipOutputStream(FileOutputStream(zip)).use { zos ->
             addFile(zos, RacePaths.raceXml(context, raceId), "race.xml")
             addFile(zos, RacePaths.protocolXml(context, raceId), "protocol.xml")
+            addFile(zos, RacePaths.faceCropManifestFile(context, raceId), "face_crop_manifest.xml")
             addFile(zos, RacePaths.testProtocolDebugLog(context, raceId), "protocol_test_debug.log")
             addDirectory(zos, RacePaths.startPhotosDir(context, raceId), "start_photos")
             addDirectory(zos, RacePaths.finishPhotosDir(context, raceId), "finish_photos")

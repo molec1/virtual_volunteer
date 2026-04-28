@@ -48,9 +48,7 @@ internal class RaceProtocolFinishSync(
         protocolFinishMillis: Long,
     ): String {
         val dets = finishDetectionDao.listForParticipantSorted(raceId, participantHashId)
-        val exact = dets.firstOrNull { it.detectedAtEpochMillis == protocolFinishMillis }
-        if (exact != null) return exact.sourcePhotoPath
-        return dets.lastOrNull { it.detectedAtEpochMillis <= protocolFinishMillis }?.sourcePhotoPath ?: ""
+        return ProtocolFinishPhotoPicker.pickSourcePhotoPath(protocolFinishMillis, dets) ?: ""
     }
 
     suspend fun recomputeProtocolFinishForParticipant(raceId: String, participantHashId: Long) {

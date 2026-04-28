@@ -25,6 +25,10 @@ object RacePaths {
     fun protocolXml(context: Context, raceId: String): File =
         File(raceFolder(context, raceId), "protocol.xml")
 
+    /** Face crop provenance XML ([com.virtualvolunteer.app.data.files.FaceCropManifestDisk]). */
+    fun faceCropManifestFile(context: Context, raceId: String): File =
+        File(raceFolder(context, raceId), "face_crop_manifest.xml")
+
     fun startPhotosDir(context: Context, raceId: String): File =
         File(raceFolder(context, raceId), "start_photos")
 

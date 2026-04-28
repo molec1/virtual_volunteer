@@ -50,6 +50,7 @@ class RaceListAdapter(
             binding.raceTime.text = RaceUiFormatter.formatTime(item.createdAtEpochMillis)
             binding.raceStatus.text = RaceUiFormatter.formatStatus(item.status)
             binding.raceRowMain.setOnClickListener { onOpen(item) }
+            binding.raceStartThumb.setOnClickListener { onOpen(item) }
             binding.btnDeleteRace.setOnClickListener { onDelete(item) }
 
             binding.raceStartThumb.visibility = View.GONE

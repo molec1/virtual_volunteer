@@ -44,6 +44,10 @@ interface ParticipantHashDao {
     @Query("DELETE FROM race_participant_hashes WHERE id = :id AND raceId = :raceId")
     suspend fun deleteById(id: Long, raceId: String): Int
 
+    /** Deletes all protocol participants for this race (cascades embeddings and finish detections). */
+    @Query("DELETE FROM race_participant_hashes WHERE raceId = :raceId")
+    suspend fun deleteAllForRace(raceId: String): Int
+
     @Query(
         """
         UPDATE race_participant_hashes SET identityRegistryId = :keeperRegistryId
@@ -51,6 +55,10 @@ interface ParticipantHashDao {
         """,
     )
     suspend fun reassignIdentityRegistryLinks(donorRegistryId: Long, keeperRegistryId: Long): Int
+
+    /** Clears device-global identity link; protocol rows and finish detections stay unchanged. */
+    @Query("UPDATE race_participant_hashes SET identityRegistryId = NULL WHERE identityRegistryId = :registryId")
+    suspend fun clearIdentityRegistryLinks(registryId: Long): Int
 
     @Query("SELECT COUNT(*) FROM race_participant_hashes WHERE raceId = :raceId")
     suspend fun countForRace(raceId: String): Int

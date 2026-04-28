@@ -37,7 +37,14 @@ class ParticipantPhotosBottomSheet : BottomSheetDialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        val adapter = ParticipantRacePhotoAdapter(viewLifecycleOwner.lifecycleScope)
+        val adapter = ParticipantRacePhotoAdapter(viewLifecycleOwner.lifecycleScope) { photo ->
+            ParticipantProtocolPhotoViewerDialogFragment.show(
+                requireActivity().supportFragmentManager,
+                photo.absolutePath,
+                participantId,
+                raceId,
+            )
+        }
         binding.photoRecycler.layoutManager = GridLayoutManager(requireContext(), 2)
         binding.photoRecycler.adapter = adapter
 

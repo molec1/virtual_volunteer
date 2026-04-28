@@ -1,7 +1,6 @@
 package com.virtualvolunteer.app.ui.racedetail
 
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -9,7 +8,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.virtualvolunteer.app.VirtualVolunteerApp
-import com.virtualvolunteer.app.data.repository.RaceRepository
 import com.virtualvolunteer.app.databinding.BottomSheetRaceParticipantPhotosBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -41,7 +39,14 @@ class RaceParticipantPhotosBottomSheet : BottomSheetDialogFragment() {
 
         val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
 
-        photoAdapter = ParticipantRacePhotoAdapter(viewLifecycleOwner.lifecycleScope)
+        photoAdapter = ParticipantRacePhotoAdapter(viewLifecycleOwner.lifecycleScope) { photo ->
+            ParticipantProtocolPhotoViewerDialogFragment.show(
+                requireActivity().supportFragmentManager,
+                photo.absolutePath,
+                participantId,
+                raceId,
+            )
+        }
         binding.photosRecycler.adapter = photoAdapter
         binding.photosRecycler.layoutManager = GridLayoutManager(requireContext(), 3)
 

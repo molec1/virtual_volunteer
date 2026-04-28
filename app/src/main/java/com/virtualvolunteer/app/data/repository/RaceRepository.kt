@@ -1,6 +1,7 @@
 package com.virtualvolunteer.app.data.repository
 
 import android.content.Context
+import com.virtualvolunteer.app.data.files.FaceCropManifestDisk
 import com.virtualvolunteer.app.data.files.RaceEventPhotosLister
 import com.virtualvolunteer.app.data.local.EmbeddingSourceType
 import com.virtualvolunteer.app.data.local.FinishDetectionDao
@@ -12,7 +13,9 @@ import com.virtualvolunteer.app.data.local.ParticipantHashDao
 import com.virtualvolunteer.app.data.local.RaceDao
 import com.virtualvolunteer.app.data.local.RaceEntity
 import com.virtualvolunteer.app.data.local.RaceParticipantHashEntity
+import com.virtualvolunteer.app.domain.face.EmbeddingMath
 import com.virtualvolunteer.app.domain.identity.GlobalIdentityResolution
+import com.virtualvolunteer.app.domain.matching.FaceMatchEngine
 import com.virtualvolunteer.app.domain.matching.ParticipantEmbeddingSet
 import com.virtualvolunteer.app.export.DeviceIdentitiesImportResult
 import com.virtualvolunteer.app.export.ParticipantsExportService
@@ -22,7 +25,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.io.File
 
-/** One image file for a participant in a race; [isFinishFrame] when used as a finish detection source. */
+/** One image file for a participant in a race; [isFinishFrame] is true only for the protocol.xml finish photo. */
 data class ParticipantRacePhoto(
     val absolutePath: String,
     val isFinishFrame: Boolean,
@@ -89,6 +92,13 @@ class RaceRepository(
         participantHashDao,
         participantEmbeddingDao,
         identityRegistryDao,
+    )
+    private val participantFaceData = ParticipantFaceDataMutations(
+        participantHashDao,
+        participantEmbeddingDao,
+        identityRegistryDao,
+        embeddingWriter,
+        protocolFinish,
     )
     private val finishRecorder = RaceFinishDetectionRecorder(
         participantHashDao = participantHashDao,
@@ -441,11 +451,134 @@ class RaceRepository(
         lifecycleStore.deleteRace(raceId)
     }
 
+    /**
+     * Full offline rebuild from stored originals under [com.virtualvolunteer.app.data.files.RacePaths]:
+     * snapshots embeddings + scan/registry/display metadata, deletes all protocol rows and `faces/` + `debug/`
+     * crops (start/finish full frames are kept), then [ingestStart] / [ingestFinishNewRows] replay like import.
+     * Reattaches saved metadata to new rows when best cosine ≥ [FaceMatchEngine.DEFAULT_MIN_COSINE], refreshes
+     * list thumbnail, [protocol.xml], and scan merges.
+     */
+    suspend fun executeFullDiskPhotoReprocess(
+        raceId: String,
+        ingestStart: suspend (String, File) -> Result<Int>,
+        ingestFinishNewRows: suspend (String, File) -> Result<Int>,
+        progressLog: (String) -> Unit = {},
+    ): RaceReprocessResult {
+        require(raceDao.getRace(raceId) != null) { "Race not found" }
+        val hints = RaceRepositoryDiskReprocess.buildHints(
+            participantHashDao,
+            participantEmbeddingDao,
+            raceId,
+        )
+        progressLog(
+            "REPROCESS_BEGIN race=${raceId.take(8)}… hints=${hints.size}",
+        )
+        RaceRepositoryDiskReprocess.wipeParticipantRowsAndAuxFaceDirs(
+            appContext,
+            raceId,
+            participantHashDao,
+            this,
+        )
+        progressLog("REPROCESS_WIPED_DB_AND_AUX_FACE_DIRS")
+        val startFiles = RaceEventPhotosLister.listStartPhotoFilesSortedOldestFirst(appContext, raceId)
+        var startFacesInserted = 0
+        var startIngestFailures = 0
+        progressLog("REPROCESS_START_FILES count=${startFiles.size}")
+        for ((idx, f) in startFiles.withIndex()) {
+            val r = ingestStart(raceId, f)
+            if (r.isFailure) startIngestFailures++
+            startFacesInserted += r.getOrDefault(0)
+            progressLog(
+                "REPROCESS_START_FILE [${idx + 1}/${startFiles.size}] name=${f.name} ok=${r.isSuccess} " +
+                    "facesInsertedThisFile=${r.getOrNull() ?: 0}",
+            )
+        }
+        applyOfflineRaceStartFromStartPhotos(raceId)
+        val finishFiles = RaceEventPhotosLister.listFinishPhotoFilesSortedOldestFirst(appContext, raceId)
+        var finishPipelineNewRows = 0
+        var finishIngestFailures = 0
+        progressLog("REPROCESS_FINISH_FILES count=${finishFiles.size}")
+        for ((idx, f) in finishFiles.withIndex()) {
+            val r = ingestFinishNewRows(raceId, f)
+            if (r.isFailure) finishIngestFailures++
+            finishPipelineNewRows += r.getOrDefault(0)
+            progressLog(
+                "REPROCESS_FINISH_FILE [${idx + 1}/${finishFiles.size}] name=${f.name} ok=${r.isSuccess} " +
+                    "newRowsThisFile=${r.getOrNull() ?: 0}",
+            )
+            updateLastProcessedPhoto(raceId, f.absolutePath)
+        }
+        if (finishFiles.isEmpty() && startFiles.isNotEmpty()) {
+            updateLastProcessedPhoto(raceId, startFiles.last().absolutePath)
+        }
+        val identityHintsRestored = RaceRepositoryDiskReprocess.applyIdentityHintsGreedy(
+            raceId = raceId,
+            hints = hints,
+            minCosine = FaceMatchEngine.DEFAULT_MIN_COSINE,
+            repo = this,
+            identityRegistryDao = identityRegistryDao,
+        )
+        ensureRaceListThumbnail(raceId)
+        refreshProtocolXml(raceId)
+        consolidateScanMergesForRace(raceId)
+        progressLog(
+            "REPROCESS_END startFiles=${startFiles.size} startFail=$startIngestFailures " +
+                "finishFiles=${finishFiles.size} finishFail=$finishIngestFailures " +
+                "hintsRestored=$identityHintsRestored",
+        )
+        return RaceReprocessResult(
+            startPhotosProcessed = startFiles.size,
+            startFacesInserted = startFacesInserted,
+            startIngestFailures = startIngestFailures,
+            finishPhotosProcessed = finishFiles.size,
+            finishPipelineNewRows = finishPipelineNewRows,
+            finishIngestFailures = finishIngestFailures,
+            identityHintsCaptured = hints.size,
+            identityHintsRestored = identityHintsRestored,
+        )
+    }
+
     suspend fun listParticipantHashes(raceId: String): List<RaceParticipantHashEntity> =
         participantHashDao.listForRace(raceId)
 
     suspend fun listRacesForParticipant(participantId: Long): List<ParticipantRaceSummary> =
         participantRaceHistory.listRacesForParticipant(participantId)
+
+    /** Stored embeddings for this participant (and linked protocol rows when a registry exists), for UI previews. */
+    suspend fun listParticipantEmbeddingPreviews(participantId: Long): List<ParticipantEmbeddingPreviewRow> =
+        participantFaceData.listEmbeddingPreviews(participantId)
+
+    /**
+     * Non-empty parsed embedding vectors for this protocol participant row (same vectors used for matching).
+     * Used when several faces appear on one photo to highlight the face that belongs to this participant.
+     */
+    suspend fun listParticipantEmbeddingFloatVectors(participantId: Long): List<FloatArray> =
+        participantEmbeddingDao.listForParticipant(participantId).mapNotNull { row ->
+            EmbeddingMath.parseCommaSeparated(row.embedding).takeIf { it.isNotEmpty() }
+        }
+
+    /**
+     * Strips all face embeddings for this identity’s linked protocol rows (or the single row), clears registry face
+     * data when linked; keeps scan codes, names, and finish protocol rows.
+     */
+    suspend fun removeAllFaceEmbeddingsForParticipantIdentity(participantId: Long) {
+        val seed = participantHashDao.getById(participantId) ?: return
+        val linked = seed.identityRegistryId?.let { rid ->
+            participantHashDao.listHashesForIdentityRegistry(rid)
+        } ?: listOf(seed)
+        participantFaceData.removeAllEmbeddingsForLinkedParticipants(participantId)
+        for (p in linked) {
+            FaceCropManifestDisk.removeEntriesForParticipant(appContext, p.raceId, p.id)
+        }
+    }
+
+    /**
+     * Deletes the device [IdentityRegistryEntity] and nulls [RaceParticipantHashEntity.identityRegistryId] on
+     * linked protocol rows. Does not delete protocol participants or finish detections.
+     */
+    suspend fun deleteIdentityRegistryUnlinkKeepProtocol(registryId: Long) {
+        participantFaceData.deleteRegistryUnlinkKeepProtocol(registryId)
+    }
 
     suspend fun resolveParticipantHashIdForRegistry(registryId: Long): Long? =
         participantHashDao.findLatestParticipantHashIdForRegistry(registryId)
@@ -458,7 +591,7 @@ class RaceRepository(
 
     /**
      * Distinct photos for this participant in this race: start/source, face thumbnail, then finish-line sources.
-     * Paths that appear in finish detections are marked [ParticipantRacePhoto.isFinishFrame].
+     * At most one path is marked [ParticipantRacePhoto.isFinishFrame]: the source photo for the official protocol finish instant.
      */
     suspend fun listParticipantRacePhotos(raceId: String, participantId: Long): List<ParticipantRacePhoto> =
         participantMediaPaths.listParticipantRacePhotos(raceId, participantId)

@@ -7,6 +7,7 @@ import android.util.Log
 import com.virtualvolunteer.app.VirtualVolunteerApp
 import com.virtualvolunteer.app.data.files.RacePaths
 import com.virtualvolunteer.app.data.local.RaceParticipantHashEntity
+import com.virtualvolunteer.app.data.repository.RaceReprocessResult
 import com.virtualvolunteer.app.data.repository.RaceRepository
 import com.google.mlkit.vision.face.Face
 import com.virtualvolunteer.app.domain.debug.FinishPhotoDebugReport
@@ -112,6 +113,51 @@ class RacePhotoProcessor(
         context: Context,
         raceId: String,
     ): Result<File> = finishFolderTest.build(context, raceId)
+
+    /**
+     * Replays stored **full-frame** start/finish originals: clears protocol DB rows and race `faces/` + `debug/`
+     * crops, re-detects and re-embeds like import, re-runs finish matching, refreshes protocol.
+     * Operator scan / registry / display metadata is snapshotted before wipe and reapplied when cosine
+     * to a new row is ≥ the same threshold as finish auto-match.
+     */
+    suspend fun reprocessRaceFromStoredEventPhotos(raceId: String): Result<RaceReprocessResult> = runCatching {
+        pipelineLog("—— reprocessRaceFromStoredEventPhotos ——")
+        val out = races.executeFullDiskPhotoReprocess(
+            raceId = raceId,
+            ingestStart = { rid, file ->
+                val r = ingestStartPhoto(rid, file)
+                r.onSuccess { n ->
+                    pipelineLog("REPROCESS_START_DETAIL file=${file.name} participantHashesInserted=$n")
+                }
+                r.onFailure { e ->
+                    Log.e(TAG, "reprocess start ingest failed ${file.absolutePath}", e)
+                    pipelineLog("REPROCESS_START_DETAIL_FAIL file=${file.name} err=${e.message}")
+                }
+                r
+            },
+            ingestFinishNewRows = { rid, file ->
+                val r = ingestFinishPhotoWithLog(rid, file)
+                r.onSuccess { fr ->
+                    pipelineLog("REPROCESS_FINISH_DETAIL ${fr.debugSummaryLine(file.name)}")
+                    Log.i(TAG, "reprocess finish detail ${file.absolutePath}\n${fr.logText}")
+                }
+                r.onFailure { e ->
+                    Log.e(TAG, "reprocess finish ingest failed ${file.absolutePath}", e)
+                    pipelineLog("REPROCESS_FINISH_DETAIL_FAIL file=${file.name} err=${e.message}")
+                }
+                r.map { it.newRecordsInserted }
+            },
+            progressLog = { line -> pipelineLog(line) },
+        )
+        pipelineLog(
+            "reprocessRace done startPhotos=${out.startPhotosProcessed} startFaces=${out.startFacesInserted} " +
+                "startIngestFail=${out.startIngestFailures} " +
+                "finishPhotos=${out.finishPhotosProcessed} finishNew=${out.finishPipelineNewRows} " +
+                "finishIngestFail=${out.finishIngestFailures} " +
+                "hints=${out.identityHintsCaptured} restored=${out.identityHintsRestored}",
+        )
+        out
+    }
 
     /** Same bitmap space ML Kit expects: full decode + EXIF upright orientation. */
     internal fun loadVisionBitmap(photoFile: File) =

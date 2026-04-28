@@ -3,10 +3,13 @@ package com.virtualvolunteer.app.domain.face
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
+import com.virtualvolunteer.app.BuildConfig
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.Tensor
 import org.tensorflow.lite.support.common.FileUtil
+import java.io.File
+import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -20,7 +23,17 @@ import java.nio.ByteOrder
 class TfliteFaceEmbedder(
     context: Context,
     private val assetPath: String = ASSET_PATH,
+    /** When true, very dark or very bright expanded crops get mild gamma before resize (optional). */
+    private val normalizeLuminanceBeforeResize: Boolean = true,
 ) : FaceEmbedder {
+
+    private val appContext = context.applicationContext
+    private val normalizedCropDebugDir: File? =
+        if (BuildConfig.DEBUG && normalizeLuminanceBeforeResize) {
+            File(appContext.cacheDir, "face_crop_normalized_debug").also { it.mkdirs() }
+        } else {
+            null
+        }
 
     private val interpreter: Interpreter
     private val interpreterLock = Any()
@@ -54,7 +67,17 @@ class TfliteFaceEmbedder(
     }
 
     override fun embed(faceCrop: Bitmap): FloatArray {
-        val scaled = Bitmap.createScaledBitmap(faceCrop, inputW, inputH, true)
+        var prepared = faceCrop
+        var recyclePrepared = false
+        if (normalizeLuminanceBeforeResize) {
+            val normalized = FaceCropLuminanceNormalizer.normalizeIfNeeded(faceCrop)
+            if (normalized !== faceCrop) {
+                prepared = normalized
+                recyclePrepared = true
+                maybeSaveNormalizedCropDebug(normalized)
+            }
+        }
+        val scaled = Bitmap.createScaledBitmap(prepared, inputW, inputH, true)
         try {
             val outputBuffer = allocateOutputBuffer()
             if (inputFloat) {
@@ -73,7 +96,18 @@ class TfliteFaceEmbedder(
             val flat = flattenEmbeddingOutput(outputBuffer)
             return EmbeddingMath.l2Normalize(flat)
         } finally {
-            if (scaled !== faceCrop) scaled.recycle()
+            if (scaled !== prepared) scaled.recycle()
+            if (recyclePrepared) prepared.recycle()
+        }
+    }
+
+    private fun maybeSaveNormalizedCropDebug(bitmap: Bitmap) {
+        val dir = normalizedCropDebugDir ?: return
+        runCatching {
+            val file = File(dir, "norm_${System.nanoTime()}.jpg")
+            FileOutputStream(file).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+            }
         }
     }
 

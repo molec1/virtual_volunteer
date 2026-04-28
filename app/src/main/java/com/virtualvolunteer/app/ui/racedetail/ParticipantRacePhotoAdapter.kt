@@ -18,12 +18,13 @@ import kotlinx.coroutines.withContext
 
 internal class ParticipantRacePhotoAdapter(
     private val imageLoadScope: CoroutineScope,
+    private val onPhotoClick: (ParticipantRacePhoto) -> Unit = {},
 ) : ListAdapter<ParticipantRacePhoto, ParticipantRacePhotoAdapter.VH>(DIFF) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val inflater = LayoutInflater.from(parent.context)
         val binding = ItemParticipantRacePhotoBinding.inflate(inflater, parent, false)
-        return VH(binding, imageLoadScope)
+        return VH(binding, imageLoadScope, onPhotoClick)
     }
 
     override fun onBindViewHolder(holder: VH, position: Int) {
@@ -33,6 +34,7 @@ internal class ParticipantRacePhotoAdapter(
     class VH(
         private val binding: ItemParticipantRacePhotoBinding,
         private val imageLoadScope: CoroutineScope,
+        private val onPhotoClick: (ParticipantRacePhoto) -> Unit,
     ) : RecyclerView.ViewHolder(binding.root) {
 
         private var loadJob: Job? = null
@@ -45,6 +47,7 @@ internal class ParticipantRacePhotoAdapter(
             binding.photoImage.setBackgroundResource(R.drawable.bg_placeholder_photo)
             binding.finishBadge.visibility =
                 if (item.isFinishFrame) View.VISIBLE else View.GONE
+            binding.root.setOnClickListener { onPhotoClick(item) }
 
             val path = item.absolutePath
             loadJob = imageLoadScope.launch(Dispatchers.Default) {

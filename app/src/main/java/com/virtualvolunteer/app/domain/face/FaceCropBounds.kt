@@ -11,8 +11,8 @@ import kotlin.math.max
  */
 object FaceCropBounds {
 
-    /** Fraction of face width/height added on each side (e.g. 0.25f ≈ 25% per side). */
-    const val DEFAULT_MARGIN_PER_SIDE = 0.25f
+    /** Fraction of face width/height added on each side (e.g. 0.45f ≈ 45% per side). */
+    const val DEFAULT_MARGIN_PER_SIDE = 0.45f
 
     fun expandFaceRect(
         raw: Rect,

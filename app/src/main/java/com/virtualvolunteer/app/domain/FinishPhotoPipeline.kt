@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.util.Log
+import com.virtualvolunteer.app.data.files.FaceCropManifestDisk
 import com.virtualvolunteer.app.data.files.RacePaths
 import com.virtualvolunteer.app.data.local.EmbeddingSourceType
 import com.virtualvolunteer.app.data.local.RaceParticipantHashEntity
@@ -16,6 +17,7 @@ import com.virtualvolunteer.app.domain.face.FaceThumbnailSaver
 import com.virtualvolunteer.app.domain.face.MlKitFaceDetector
 import com.virtualvolunteer.app.domain.face.OrientedPhotoBitmap
 import com.virtualvolunteer.app.domain.matching.FaceMatchEngine
+import com.virtualvolunteer.app.domain.matching.formatFinishMatchDecisionLogLine
 import com.virtualvolunteer.app.domain.participants.RaceParticipantPool
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -51,7 +53,12 @@ internal class FinishPhotoPipeline(
             ?: run {
                 val msg = "DECODE_FAILED path=${photoFile.absolutePath}"
                 pipelineLog(msg)
-                return FinishProcessResult(0, logNoBitmap(photoFile) + msg + "\n")
+                return FinishProcessResult(
+                    newRecordsInserted = 0,
+                    logText = logNoBitmap(photoFile) + msg + "\n",
+                    decodeSucceeded = false,
+                    detectedFaceCount = 0,
+                )
             }
 
         pipelineLog("visionBitmap=${bmp.width}x${bmp.height} (after EXIF upright correction)")
@@ -86,7 +93,12 @@ internal class FinishPhotoPipeline(
 
             if (detected.isEmpty()) {
                 pipelineLog("STOP: no faces (no match / no finish row)")
-                return FinishProcessResult(0, sb.toString())
+                return FinishProcessResult(
+                    newRecordsInserted = 0,
+                    logText = sb.toString(),
+                    decodeSucceeded = true,
+                    detectedFaceCount = 0,
+                )
             }
 
             val facesDir = RacePaths.facesDir(appContext, raceId)
@@ -95,7 +107,9 @@ internal class FinishPhotoPipeline(
             var newRows = 0
             detected.forEachIndexed { index, face ->
                 val faceNum = index + 1
+                var optionalFinishThumb: File? = null
                 val raw = Rect(face.boundingBox)
+                val rawFaceHeightPx = raw.height()
                 val expanded = FaceCropBounds.expandFaceRect(raw, bmp.width, bmp.height, margin)
                 val boxLine =
                     "face#$faceNum rawBoundingBox=$raw expandedBoundingBox=$expanded marginPerSide=$margin"
@@ -149,15 +163,26 @@ internal class FinishPhotoPipeline(
                 )
                 sb.appendLine("face#$faceNum nearestId=$nId cosine=$nCos thr=$thr")
 
-                val matchInAvailable = matcher.match(vec, availableThisPhoto)
+                val finishMatchOutcome =
+                    matcher.matchFinishQualityAware(vec, availableThisPhoto)
+                val matchInAvailable = finishMatchOutcome.matchedParticipant
+                val finishDecisionLine =
+                    finishMatchOutcome.formatFinishMatchDecisionLogLine(faceNum, rawFaceHeightPx)
+                pipelineLog(finishDecisionLine)
+                sb.appendLine(finishDecisionLine)
+                Log.i(TAG, finishDecisionLine)
 
                 val resolvedParticipant: RaceParticipantHashEntity = if (matchInAvailable != null) {
                     matchInAvailable
                 } else {
                     pipelineLog(
-                        "face#$faceNum no_finish_pool_match creating_participant_from_finish nearestCos=$nCos thr=$thr",
+                        "face#$faceNum no_finish_pool_match creating_participant_from_finish " +
+                            "nearestCos=$nCos threshold=$thr matchDecision=${finishMatchOutcome.matchDecision.name}",
                     )
-                    sb.appendLine("face#$faceNum new_participant_from_finish nearestCos=$nCos thr=$thr")
+                    sb.appendLine(
+                        "face#$faceNum new_participant_from_finish nearestCos=$nCos thr=$thr " +
+                            "matchDecision=${finishMatchOutcome.matchDecision.name}",
+                    )
                     val thumbFile = FaceThumbnailSaver.thumbnailFile(facesDir, photoFile, faceNum)
                     runCatching {
                         FaceThumbnailSaver.saveJpeg(crop, thumbFile)
@@ -165,6 +190,7 @@ internal class FinishPhotoPipeline(
                         Log.e(TAG, "finish thumb save failed face#$faceNum", err)
                         pipelineLog("face#$faceNum thumbnailSaved=false err=${err.message}")
                     }
+                    optionalFinishThumb = thumbFile.takeIf { it.exists() }
                     val embeddingStr = EmbeddingMath.formatCommaSeparated(vec)
                     val globalId = races.resolveGlobalIdentity(vec)
                     val newId = races.insertParticipantHash(
@@ -220,6 +246,21 @@ internal class FinishPhotoPipeline(
                     false
                 }
                 newRows++
+                FaceCropManifestDisk.upsertReplaceParticipantOnSource(
+                    appContext,
+                    raceId,
+                    FaceCropManifestDisk.Entry(
+                        sourcePhotoPath = photoFile.absolutePath,
+                        visionWidth = bmp.width,
+                        visionHeight = bmp.height,
+                        left = expanded.left,
+                        top = expanded.top,
+                        right = expanded.right,
+                        bottom = expanded.bottom,
+                        participantHashId = resolvedParticipant.id,
+                        cropFilePath = optionalFinishThumb?.absolutePath,
+                    ),
+                )
 
                 pipelineLog(
                     "face#$faceNum candidateSource=${photoFile.absolutePath} nearestParticipantId=$nId bestScore=$nCos " +
@@ -248,7 +289,12 @@ internal class FinishPhotoPipeline(
             }
 
             pipelineLog("ingestFinishPhoto done newFinishRows=$newRows")
-            return FinishProcessResult(newRows, sb.toString())
+            return FinishProcessResult(
+                newRecordsInserted = newRows,
+                logText = sb.toString(),
+                decodeSucceeded = true,
+                detectedFaceCount = detected.size,
+            )
         } finally {
             bmp.recycle()
         }

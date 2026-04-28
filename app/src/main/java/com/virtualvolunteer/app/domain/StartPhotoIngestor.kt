@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.util.Log
+import com.virtualvolunteer.app.data.files.FaceCropManifestDisk
 import com.virtualvolunteer.app.data.files.RacePaths
 import com.virtualvolunteer.app.data.local.EmbeddingSourceType
 import com.virtualvolunteer.app.data.local.RaceParticipantHashEntity
@@ -180,6 +181,21 @@ internal class StartPhotoIngestor(
                 Log.i(
                     TAG,
                     "insert id=$rowId embeddingFailed=$embeddingFailed totalParticipants=$total",
+                )
+                FaceCropManifestDisk.upsertReplaceParticipantOnSource(
+                    appContext,
+                    raceId,
+                    FaceCropManifestDisk.Entry(
+                        sourcePhotoPath = photoFile.absolutePath,
+                        visionWidth = bmp.width,
+                        visionHeight = bmp.height,
+                        left = expanded.left,
+                        top = expanded.top,
+                        right = expanded.right,
+                        bottom = expanded.bottom,
+                        participantHashId = rowId,
+                        cropFilePath = thumbFile.takeIf { it.exists() }?.absolutePath,
+                    ),
                 )
                 inserted++
             }

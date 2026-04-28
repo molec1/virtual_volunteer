@@ -1,6 +1,7 @@
 package com.virtualvolunteer.app.data.repository
 
 import android.content.Context
+import com.virtualvolunteer.app.data.files.FaceCropManifestDisk
 import com.virtualvolunteer.app.data.files.RacePaths
 import com.virtualvolunteer.app.data.local.FinishDetectionDao
 import com.virtualvolunteer.app.data.local.ParticipantEmbeddingDao
@@ -100,6 +101,7 @@ internal class RaceEventPhotoDeletionService(
         }
 
         File(photoAbsolutePath).delete()
+        FaceCropManifestDisk.removeEntriesForCanonicalSource(appContext, raceId, target)
 
         if (thumbnails.isPathUnderStartPhotosForRace(raceId, target)) {
             thumbnails.ensureRaceListThumbnail(raceId)

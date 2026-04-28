@@ -60,35 +60,26 @@
                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
                 tools:text="Participant Name" />
 
-            <LinearLayout
+            <TextView
+                android:id="@+id/participantScanCode"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
+                tools:text="ABC123" />
 
-                <TextView
-                    android:id="@+id/participantScanCode"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:minWidth="0dp"
-                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
-                    tools:text="Scan: ABC123" />
-
-                <TextView
-                    android:id="@+id/participantFinishTime"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="2dp"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.Caption"
-                    android:textColor="@color/text_secondary"
-                    tools:text="Finish: 00:00:00" />
-            </LinearLayout>
+            <TextView
+                android:id="@+id/participantFinishTime"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textAppearance="@style/TextAppearance.VirtualVolunteer.Caption"
+                android:textColor="@color/text_secondary"
+                tools:text="14:05:32" />
 
             <TextView
                 android:id="@+id/participantRegistryInfo"

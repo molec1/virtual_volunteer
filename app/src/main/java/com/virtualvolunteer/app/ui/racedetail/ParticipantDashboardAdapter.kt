@@ -73,12 +73,12 @@ class ParticipantDashboardAdapter(
                 binding.participantRank.visibility = View.GONE
             }
 
-            val name = row.displayName?.trim()?.takeIf { it.isNotEmpty() }
-            binding.participantName.text = name
+            val nameTrim = row.displayName?.trim()?.takeIf { it.isNotEmpty() }
+            binding.participantName.text = nameTrim
                 ?: binding.root.context.getString(R.string.participant_tap_to_name)
 
-
-            val info = row.registryInfo
+            val scanTrim = row.scannedPayload?.trim()?.takeIf { it.isNotEmpty() }
+            val info = registryInfoWithoutRedundantScan(row.registryInfo, scanTrim)
             if (!info.isNullOrBlank()) {
                 binding.participantRegistryInfo.visibility = View.VISIBLE
                 binding.participantRegistryInfo.text = info
@@ -100,23 +100,17 @@ class ParticipantDashboardAdapter(
             }
 
             if (finishMs != null) {
-                binding.participantFinishTime.text = ctx.getString(
-                    R.string.participant_finish_fmt,
-                    RaceUiFormatter.formatDateTime(finishMs),
-                )
+                binding.participantFinishTime.text = RaceUiFormatter.formatTime(finishMs)
                 binding.participantFinishTime.setTextColor(ContextCompat.getColor(ctx, R.color.text_primary))
             } else {
-                binding.participantFinishTime.text = ctx.getString(R.string.participant_no_finish_yet)
+                binding.participantFinishTime.text = ctx.getString(R.string.participant_protocol_finish_empty)
                 binding.participantFinishTime.setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary))
             }
 
-            val scan = row.scannedPayload
-            if (!scan.isNullOrBlank()) {
+            val showScanLine = scanTrim != null && scanTrim != nameTrim
+            if (showScanLine) {
                 binding.participantScanCode.visibility = View.VISIBLE
-                binding.participantScanCode.text = binding.root.context.getString(
-                    R.string.participant_scan_fmt,
-                    scan,
-                )
+                binding.participantScanCode.text = scanTrim
             } else {
                 binding.participantScanCode.visibility = View.GONE
             }
@@ -134,6 +128,24 @@ class ParticipantDashboardAdapter(
     }
 
     companion object {
+        private const val REGISTRY_INFO_SEPARATOR = " · "
+
+        /**
+         * [RaceParticipantHashEntity.registryInfo] often repeats the scan code (merged from identity_registry).
+         * The dedicated scan line already shows it once.
+         */
+        private fun registryInfoWithoutRedundantScan(
+            registryInfo: String?,
+            scanTrimmed: String?,
+        ): String? {
+            val raw = registryInfo?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            val scan = scanTrimmed?.trim()?.takeIf { it.isNotEmpty() } ?: return raw
+            val parts = raw.split(REGISTRY_INFO_SEPARATOR).map { it.trim() }.filter { it.isNotEmpty() }
+            val filtered = parts.filter { it != scan }
+            if (filtered.isEmpty()) return null
+            return filtered.joinToString(REGISTRY_INFO_SEPARATOR)
+        }
+
         private val DIFF = object : DiffUtil.ItemCallback<ParticipantDashboardRow>() {
             override fun areItemsTheSame(
                 oldItem: ParticipantDashboardRow,

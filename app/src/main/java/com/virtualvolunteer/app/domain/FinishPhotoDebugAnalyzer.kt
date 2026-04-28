@@ -11,6 +11,7 @@ import com.virtualvolunteer.app.domain.face.FaceCropBounds
 import com.virtualvolunteer.app.domain.face.FaceEmbedder
 import com.virtualvolunteer.app.domain.face.MlKitFaceDetector
 import com.virtualvolunteer.app.domain.matching.FaceMatchEngine
+import com.virtualvolunteer.app.domain.matching.FinishFaceMatchPolicy
 import com.virtualvolunteer.app.domain.participants.RaceParticipantPool
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -42,7 +43,7 @@ internal class FinishPhotoDebugAnalyzer(
             val detected = faces.detectFaces(bmp)
             Log.i(TAG, "analyzeFinishDebug file=${photoFile.name} detectedFaceCount=${detected.size}")
             val baseSets = pool.participantEmbeddingSets(raceId).filter { it.hasEmbeddings }
-            val threshold = matcher.threshold()
+            val threshold = FinishFaceMatchPolicy.AUTO_MATCH_THRESHOLD
 
             val rows = ArrayList<FinishFaceDebugRow>(detected.size)
             val margin = FaceCropBounds.DEFAULT_MARGIN_PER_SIDE
@@ -89,7 +90,9 @@ internal class FinishPhotoDebugAnalyzer(
                 }
                 crop.recycle()
                 val preview = previewEmbedding(vec)
-                val picked = matcher.match(vec, availableThisPhoto)
+                val finishOutcome =
+                    matcher.matchFinishQualityAware(vec, availableThisPhoto)
+                val picked = finishOutcome.matchedParticipant
                 val nearestDiag = matcher.nearest(vec, baseSets)
                 val pickedSet = picked?.let { p -> baseSets.find { it.participant.id == p.id } }
                 val nearestId = picked?.id ?: nearestDiag?.participant?.id

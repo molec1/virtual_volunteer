@@ -49,7 +49,11 @@ class CameraCaptureFragment : Fragment() {
     private var cameraExecutor: ExecutorService? = null
     private var imageCapture: ImageCapture? = null
 
-    /** True from capture request through ingest; blocks overlapping captures and parallel TFLite use from this screen. */
+    /**
+     * True from capture request through file write (and, for start photos, through ingest). Blocks
+     * overlapping CameraX saves; finish photos enqueue analysis on the app and clear this as soon as
+     * the file is saved.
+     */
     private val capturePipelineBusy = AtomicBoolean(false)
 
     private lateinit var photoProcessor: RacePhotoProcessor
@@ -114,7 +118,7 @@ class CameraCaptureFragment : Fragment() {
                 val b = _binding ?: return@addListener
                 val cameraProvider = cameraProviderFuture.get()
                 val preview = Preview.Builder().build()
-                preview.setSurfaceProvider(b.cameraPreview.getSurfaceProvider())
+                preview.setSurfaceProvider(b.cameraPreview.surfaceProvider)
                 imageCapture = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                     .build()
@@ -158,30 +162,23 @@ class CameraCaptureFragment : Fragment() {
             executor,
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    // Callback runs on cameraExecutor; hop to main before viewLifecycleOwner / binding.
                     ContextCompat.getMainExecutor(appForIngest).execute {
                         if (!isAdded || view == null) {
                             capturePipelineBusy.set(false)
                             return@execute
                         }
-                        // viewLifecycleOwner: cancel when the view is gone; never touch binding after destroyView.
                         viewLifecycleOwner.lifecycleScope.launch {
-                            _binding?.cameraStatus?.text = getString(R.string.camera_capture_status_processing)
                             try {
-                                withContext(Dispatchers.IO) {
-                                    val app = appForIngest
-                                    when (captureMode) {
-                                        MODE_FINISH_PHOTO -> {
-                                            app.appendPipelineLog("—— CameraX finish (${file.name}) ——")
-                                            val ingest = photoProcessor.ingestFinishPhoto(raceId, file)
-                                            ingest.onFailure { t ->
-                                                Log.w(TAG, "ingestFinishPhoto failed", t)
-                                                app.appendPipelineLog("CAMERA_FINISH_INGEST_FAILED err=${t.message}")
-                                            }
-                                            app.raceRepository.updateLastProcessedPhoto(raceId, file.absolutePath)
-                                            app.appendPipelineLog("CameraX finish capture done")
-                                        }
-                                        else -> {
+                                when (captureMode) {
+                                    MODE_FINISH_PHOTO -> {
+                                        appForIngest.appendPipelineLog("—— CameraX finish (${file.name}) ——")
+                                        appForIngest.finishPhotoAnalysisQueue.enqueue(raceId, file)
+                                        appForIngest.appendPipelineLog("CameraX finish saved; analysis queued")
+                                    }
+                                    else -> {
+                                        _binding?.cameraStatus?.text =
+                                            getString(R.string.camera_capture_status_processing)
+                                        withContext(Dispatchers.IO) {
                                             photoProcessor.ingestStartPhoto(raceId, file).onFailure { t ->
                                                 Log.w(TAG, "ingestStartPhoto failed", t)
                                             }

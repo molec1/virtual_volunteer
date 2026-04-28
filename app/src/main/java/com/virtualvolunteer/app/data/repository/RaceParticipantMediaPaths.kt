@@ -15,7 +15,6 @@ internal class RaceParticipantMediaPaths(
         val p = participantHashDao.getById(participantId) ?: return emptyList()
         require(p.raceId == raceId)
         val dets = finishDetectionDao.listForParticipantSorted(raceId, participantId)
-        val finishCanonical = dets.map { File(it.sourcePhotoPath).canonicalPath }.toSet()
 
         fun normalizeExisting(path: String?): String? {
             if (path.isNullOrBlank()) return null
@@ -27,26 +26,26 @@ internal class RaceParticipantMediaPaths(
         val out = mutableListOf<ParticipantRacePhoto>()
         val seen = LinkedHashSet<String>()
 
-        fun push(path: String?, preferFinish: Boolean) {
+        fun push(path: String?) {
             if (path.isNullOrBlank()) return
             if (RacePaths.isPathUnderRaceFacesDir(appContext, raceId, path)) return
             val canonical = normalizeExisting(path) ?: return
-            val isFinish = preferFinish || finishCanonical.contains(canonical)
-            if (!seen.add(canonical)) {
-                val i = out.indexOfFirst { it.absolutePath == canonical }
-                if (i >= 0 && isFinish && !out[i].isFinishFrame) {
-                    out[i] = out[i].copy(isFinishFrame = true)
-                }
-                return
-            }
-            out.add(ParticipantRacePhoto(canonical, isFinish))
+            if (!seen.add(canonical)) return
+            out.add(ParticipantRacePhoto(canonical, isFinishFrame = false))
         }
 
-        push(p.sourcePhoto, false)
+        push(p.sourcePhoto)
         for (d in dets) {
-            push(d.sourcePhotoPath, true)
+            push(d.sourcePhotoPath)
         }
-        return out
+
+        val officialCanonical = ProtocolFinishPhotoPicker
+            .pickSourcePhotoPath(p.protocolFinishTimeEpochMillis, dets)
+            ?.let { normalizeExisting(it) }
+        return out.map { row ->
+            val tick = officialCanonical != null && row.absolutePath == officialCanonical
+            row.copy(isFinishFrame = tick)
+        }
     }
 
     suspend fun listFinishPhotoPathsForRace(raceId: String): List<String> {
