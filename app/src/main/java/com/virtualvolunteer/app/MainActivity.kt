@@ -25,7 +25,8 @@ class MainActivity : AppCompatActivity() {
         val navHost =
             supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
         val navController = navHost.navController
-        appBarConfiguration = AppBarConfiguration(navController.graph)
+        // Only the race list is top-level; other screens should show "Up" in the toolbar.
+        appBarConfiguration = AppBarConfiguration(setOf(R.id.race_list))
         setSupportActionBar(binding.toolbar)
         setupActionBarWithNavController(navController, appBarConfiguration)
     }

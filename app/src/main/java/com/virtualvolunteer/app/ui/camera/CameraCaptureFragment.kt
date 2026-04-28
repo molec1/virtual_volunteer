@@ -1,6 +1,7 @@
 package com.virtualvolunteer.app.ui.camera
 
 import android.Manifest
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.SystemClock
@@ -9,7 +10,9 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -30,6 +33,7 @@ import com.virtualvolunteer.app.domain.face.TfliteFaceEmbedder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -42,6 +46,8 @@ class CameraCaptureFragment : Fragment() {
     private var _binding: FragmentCameraCaptureBinding? = null
     private val binding get() = _binding!!
 
+    private var previousRequestedOrientation: Int? = null
+
     private val raceId: String
         get() = requireArguments().getString(ARG_RACE_ID) ?: error("raceId missing")
 
@@ -50,6 +56,8 @@ class CameraCaptureFragment : Fragment() {
 
     private var cameraExecutor: ExecutorService? = null
     private var imageCapture: ImageCapture? = null
+    private var lastAppliedGuideHeightPx: Int? = null
+    private var previewLayoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null
 
     /**
      * True from capture request through file write (and, for start photos, through ingest). Blocks
@@ -105,6 +113,16 @@ class CameraCaptureFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         cameraExecutor = Executors.newSingleThreadExecutor()
 
+        // Ensure both system Back and toolbar Up close the camera and return to race screen.
+        requireActivity().onBackPressedDispatcher.addCallback(
+            viewLifecycleOwner,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    findNavController().popBackStack()
+                }
+            },
+        )
+
         binding.cameraHint.text = when (captureMode) {
             MODE_FINISH_PHOTO -> getString(R.string.camera_capture_finish_hint)
             else -> getString(R.string.camera_capture_start_hint)
@@ -143,6 +161,32 @@ class CameraCaptureFragment : Fragment() {
         } else {
             permissionLauncher.launch(Manifest.permission.CAMERA)
         }
+
+        // Recompute overlay size after layout (incl. rotation / insets changes).
+        previewLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+            updateHeadSizeGuide()
+        }.also {
+            binding.cameraPreview.viewTreeObserver.addOnGlobalLayoutListener(it)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Prevent UI from rotating into landscape while shooting photos.
+        val host = requireActivity()
+        if (previousRequestedOrientation == null) {
+            previousRequestedOrientation = host.requestedOrientation
+        }
+        host.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    }
+
+    override fun onPause() {
+        val host = activity
+        val prev = previousRequestedOrientation
+        if (host != null && prev != null) {
+            host.requestedOrientation = prev
+        }
+        super.onPause()
     }
 
     private fun startCamera() {
@@ -166,6 +210,8 @@ class CameraCaptureFragment : Fragment() {
                         preview,
                         imageCapture,
                     )
+                    // Now that use cases are bound, we can usually read the final output resolution.
+                    updateHeadSizeGuide()
                 } catch (e: Exception) {
                     Log.e(TAG, "bind failed", e)
                     Toast.makeText(requireContext(), R.string.import_failed, Toast.LENGTH_SHORT).show()
@@ -270,13 +316,77 @@ class CameraCaptureFragment : Fragment() {
         )
     }
 
+    /**
+     * Shows a minimal head outline in the top-right corner, sized so that its height corresponds
+     * to [MIN_FACE_HEIGHT_IN_OUTPUT_PX] pixels in the *final* captured image.
+     *
+     * Computation:
+     *  - coef = previewHeightPx / photoHeightPx
+     *  - guideHeightOnScreenPx = MIN_FACE_HEIGHT_IN_OUTPUT_PX * coef
+     */
+    private fun updateHeadSizeGuide() {
+        val b = _binding ?: return
+        val capture = imageCapture ?: return
+        val previewHeightPx = b.cameraPreview.height
+        if (previewHeightPx <= 0) return
+
+        val outputSize = capture.resolutionInfo?.resolution ?: run {
+            // Resolution not known yet; keep it hidden until we can compute a meaningful size.
+            b.headSizeGuide.visibility = View.GONE
+            return
+        }
+
+        val rotationDegrees = capture.targetRotation.let { rot ->
+            when (rot) {
+                android.view.Surface.ROTATION_0 -> 0
+                android.view.Surface.ROTATION_90 -> 90
+                android.view.Surface.ROTATION_180 -> 180
+                android.view.Surface.ROTATION_270 -> 270
+                else -> 0
+            }
+        }
+
+        val photoHeightPx = if (rotationDegrees % 180 == 0) outputSize.height else outputSize.width
+        if (photoHeightPx <= 0) return
+
+        val coef = previewHeightPx.toFloat() / photoHeightPx.toFloat()
+        var guideHeightPx = (MIN_FACE_HEIGHT_IN_OUTPUT_PX * coef).roundToInt()
+
+        // Practical clamp so it doesn't disappear or dominate on odd device/aspect combos.
+        val minPx = (16f * resources.displayMetrics.density).roundToInt()
+        val maxPx = (previewHeightPx * 0.35f).roundToInt()
+        guideHeightPx = guideHeightPx.coerceIn(minPx, maxPx)
+
+        if (lastAppliedGuideHeightPx == guideHeightPx) {
+            // Still ensure visibility is correct.
+            if (b.headSizeGuide.visibility != View.VISIBLE) b.headSizeGuide.visibility = View.VISIBLE
+            return
+        }
+        lastAppliedGuideHeightPx = guideHeightPx
+
+        b.headSizeGuide.visibility = View.VISIBLE
+        b.headSizeGuide.adjustViewBounds = true
+        b.headSizeGuide.maxHeight = guideHeightPx
+        b.headSizeGuide.layoutParams = b.headSizeGuide.layoutParams.apply {
+            height = guideHeightPx
+            width = ViewGroup.LayoutParams.WRAP_CONTENT
+        }
+        b.headSizeGuide.requestLayout()
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
         fingerDownOnCaptureButton = false
         cancelDeferredContinuousChain()
+        previewLayoutListener?.let { listener ->
+            _binding?.cameraPreview?.viewTreeObserver?.removeOnGlobalLayoutListener(listener)
+        }
+        previewLayoutListener = null
         cameraExecutor?.shutdown()
         cameraExecutor = null
         imageCapture = null
+        lastAppliedGuideHeightPx = null
+        previousRequestedOrientation = null
         _binding = null
     }
 
@@ -295,5 +405,6 @@ class CameraCaptureFragment : Fragment() {
         private const val TAG = "CameraCapture"
         /** Shorter taps must not chain; finish saves often complete before ACTION_UP. */
         private const val HOLD_MS_BEFORE_CONTINUOUS_CHAIN = 400L
+        private const val MIN_FACE_HEIGHT_IN_OUTPUT_PX = 300
     }
 }
