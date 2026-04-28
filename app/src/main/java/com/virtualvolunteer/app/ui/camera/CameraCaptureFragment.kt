@@ -3,8 +3,10 @@ package com.virtualvolunteer.app.ui.camera
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
@@ -56,6 +58,19 @@ class CameraCaptureFragment : Fragment() {
      */
     private val capturePipelineBusy = AtomicBoolean(false)
 
+    /**
+     * True while the capture button receives a touch down without UP/CANCEL yet.
+     * Main thread only. Used with [fingerDownAtElapsedMs] so a fast tap (save completes before UP)
+     * does not look like a long press — see [scheduleNextCaptureIfFingerStillHeldForBurst].
+     */
+    private var fingerDownOnCaptureButton = false
+    private var fingerDownAtElapsedMs: Long = 0L
+
+    private val chainAfterHoldRunnable = Runnable {
+        if (!fingerDownOnCaptureButton || !isAdded || imageCapture == null) return@Runnable
+        capturePhoto()
+    }
+
     private lateinit var photoProcessor: RacePhotoProcessor
     private lateinit var faceDetector: MlKitFaceDetector
     private lateinit var faceEmbedder: TfliteFaceEmbedder
@@ -100,7 +115,26 @@ class CameraCaptureFragment : Fragment() {
             findNavController().popBackStack()
         }
 
-        binding.btnCameraCapture.setOnClickListener { capturePhoto() }
+        binding.btnCameraCapture.setOnClickListener {
+            fingerDownOnCaptureButton = false
+            cancelDeferredContinuousChain()
+            capturePhoto()
+        }
+        binding.btnCameraCapture.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    fingerDownOnCaptureButton = true
+                    fingerDownAtElapsedMs = SystemClock.elapsedRealtime()
+                    cancelDeferredContinuousChain()
+                    capturePhoto()
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    fingerDownOnCaptureButton = false
+                    cancelDeferredContinuousChain()
+                }
+            }
+            true
+        }
 
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
@@ -141,7 +175,28 @@ class CameraCaptureFragment : Fragment() {
         )
     }
 
+    private fun cancelDeferredContinuousChain() {
+        _binding?.btnCameraCapture?.removeCallbacks(chainAfterHoldRunnable)
+    }
+
+    /**
+     * After a successful save, take another shot only if the finger is still down *and* it has been
+     * down long enough to count as an intentional hold (not a tap whose UP is still in the queue).
+     */
+    private fun scheduleNextCaptureIfFingerStillHeldForBurst() {
+        if (!fingerDownOnCaptureButton || !isAdded || imageCapture == null) return
+        val host = _binding?.btnCameraCapture ?: return
+        host.removeCallbacks(chainAfterHoldRunnable)
+        val heldMs = SystemClock.elapsedRealtime() - fingerDownAtElapsedMs
+        if (heldMs >= HOLD_MS_BEFORE_CONTINUOUS_CHAIN) {
+            capturePhoto()
+        } else {
+            host.postDelayed(chainAfterHoldRunnable, HOLD_MS_BEFORE_CONTINUOUS_CHAIN - heldMs)
+        }
+    }
+
     private fun capturePhoto() {
+        cancelDeferredContinuousChain()
         if (!capturePipelineBusy.compareAndSet(false, true)) return
         val capture = imageCapture ?: run {
             capturePipelineBusy.set(false)
@@ -153,7 +208,8 @@ class CameraCaptureFragment : Fragment() {
         }
         val appForIngest = requireActivity().application as VirtualVolunteerApp
         binding.cameraStatus.text = getString(R.string.camera_capture_status_saving)
-        binding.btnCameraCapture.isEnabled = false
+        // Do not disable the button here: disabling can prevent ACTION_UP/ACTION_CANCEL delivery,
+        // leaving the "finger down" state stuck and causing unintended continuous shooting.
 
         val opts = ImageCapture.OutputFileOptions.Builder(file).build()
         val executor = cameraExecutor ?: ContextCompat.getMainExecutor(requireContext())
@@ -190,7 +246,7 @@ class CameraCaptureFragment : Fragment() {
                                 withContext(Dispatchers.Main) {
                                     _binding?.let { v ->
                                         v.cameraStatus.text = getString(R.string.camera_capture_status_saved)
-                                        v.btnCameraCapture.isEnabled = true
+                                        scheduleNextCaptureIfFingerStillHeldForBurst()
                                     }
                                 }
                             }
@@ -204,7 +260,6 @@ class CameraCaptureFragment : Fragment() {
                         capturePipelineBusy.set(false)
                         _binding?.let { v ->
                             v.cameraStatus.text = getString(R.string.camera_capture_status_ready)
-                            v.btnCameraCapture.isEnabled = true
                         }
                         if (_binding != null) {
                             Toast.makeText(appForIngest, R.string.import_failed, Toast.LENGTH_SHORT).show()
@@ -217,6 +272,8 @@ class CameraCaptureFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        fingerDownOnCaptureButton = false
+        cancelDeferredContinuousChain()
         cameraExecutor?.shutdown()
         cameraExecutor = null
         imageCapture = null
@@ -236,5 +293,7 @@ class CameraCaptureFragment : Fragment() {
         const val MODE_START_PHOTO = "START_PHOTO"
         const val MODE_FINISH_PHOTO = "FINISH_PHOTO"
         private const val TAG = "CameraCapture"
+        /** Shorter taps must not chain; finish saves often complete before ACTION_UP. */
+        private const val HOLD_MS_BEFORE_CONTINUOUS_CHAIN = 400L
     }
 }

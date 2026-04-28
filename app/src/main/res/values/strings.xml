@@ -150,8 +150,8 @@
     <string name="camera_capture_status_saving">Saving…</string>
     <string name="camera_capture_status_processing">Processing…</string>
     <string name="camera_capture_status_saved">Saved</string>
-    <string name="camera_capture_start_hint">Pre-start faces — tap Capture for each photo. Done returns to the race.</string>
-    <string name="camera_capture_finish_hint">Finish line — tap Capture for each photo. Done returns to the race.</string>
+    <string name="camera_capture_start_hint">Pre-start faces — tap Capture for one photo, or hold for continuous shots. Done returns to the race.</string>
+    <string name="camera_capture_finish_hint">Finish line — tap Capture for one photo, or hold for continuous shots. Done returns to the race.</string>
     <string name="race_event_photos_header">All event photos</string>
     <string name="race_event_photos_empty">No start or finish photos in this race yet.</string>
     <string name="race_event_photo_thumb_cd">Event photo thumbnail</string>
