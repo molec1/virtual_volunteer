@@ -7,6 +7,7 @@ import androidx.lifecycle.MutableLiveData
 import com.virtualvolunteer.app.data.local.AppDatabase
 import com.virtualvolunteer.app.data.repository.RaceRepository
 import com.virtualvolunteer.app.domain.FinishPhotoAnalysisQueue
+import com.virtualvolunteer.app.domain.RacePhotoProcessor
 import com.virtualvolunteer.app.domain.RacePhotoProcessorFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,10 +33,17 @@ class VirtualVolunteerApp : Application() {
         )
     }
 
-    /** Owns ML/TFLite for background finish analysis; kept for process lifetime — do not close from UI. */
+    /**
+     * Single ML Kit + TFLite stack for the process: background finish analysis, in-camera start ingest, etc.
+     * Do not close from UI fragments.
+     */
     private val backgroundFinishPhotoStack by lazy {
         RacePhotoProcessorFactory.createStack(applicationContext, raceRepository)
     }
+
+    /** Use this instead of constructing a second [RacePhotoProcessor] in fragments (avoids duplicate native memory). */
+    val racePhotoProcessor: RacePhotoProcessor
+        get() = backgroundFinishPhotoStack.processor
 
     private val finishPhotoAnalysisJob = SupervisorJob()
     private val finishPhotoAnalysisScope =

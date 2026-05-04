@@ -89,7 +89,7 @@ Paths are from `app/src/main/java/com/virtualvolunteer/app/` unless noted as `re
 | **Barcode scan** | `ui/scan/BarcodeScanActivity.kt` | — |
 | **Shared UI helpers** | `ui/util/RaceUiFormatter.kt`, `PreviewImageLoader.kt` | — |
 
-**App shell:** `MainActivity.kt`, `VirtualVolunteerApp.kt` — `res/layout/activity_main.xml`  
+**App shell:** `MainActivity.kt`, `VirtualVolunteerApp.kt` (`racePhotoProcessor`: shared ML/embed pipeline with `FinishPhotoAnalysisQueue`; avoid second `RacePhotoProcessorFactory.createStack` in UI) — `res/layout/activity_main.xml`  
 **Strings / themes:** `res/values/strings.xml`, `themes.xml`, `styles.xml`, `colors.xml`
 
 ---

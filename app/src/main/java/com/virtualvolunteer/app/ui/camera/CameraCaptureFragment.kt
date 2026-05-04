@@ -6,8 +6,11 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
+import android.hardware.SensorManager
 import android.view.LayoutInflater
 import android.view.MotionEvent
+import android.view.OrientationEventListener
+import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
@@ -27,9 +30,6 @@ import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.VirtualVolunteerApp
 import com.virtualvolunteer.app.databinding.FragmentCameraCaptureBinding
 import com.virtualvolunteer.app.domain.RacePhotoProcessor
-import com.virtualvolunteer.app.domain.RacePhotoProcessorFactory
-import com.virtualvolunteer.app.domain.face.MlKitFaceDetector
-import com.virtualvolunteer.app.domain.face.TfliteFaceEmbedder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -60,6 +60,15 @@ class CameraCaptureFragment : Fragment() {
     private var previewLayoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null
 
     /**
+     * Physical device rotation (from [OrientationEventListener]) for JPEG EXIF via CameraX
+     * [ImageCapture.setTargetRotation]. The capture UI stays portrait-locked, so we cannot use
+     * [android.view.Display.getRotation] for this.
+     */
+    private var captureTargetRotation: Int = Surface.ROTATION_0
+
+    private var orientationListener: OrientationEventListener? = null
+
+    /**
      * True from capture request through file write (and, for start photos, through ingest). Blocks
      * overlapping CameraX saves; finish photos enqueue analysis on the app and clear this as soon as
      * the file is saved.
@@ -80,8 +89,6 @@ class CameraCaptureFragment : Fragment() {
     }
 
     private lateinit var photoProcessor: RacePhotoProcessor
-    private lateinit var faceDetector: MlKitFaceDetector
-    private lateinit var faceEmbedder: TfliteFaceEmbedder
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -96,12 +103,7 @@ class CameraCaptureFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val appContext = requireActivity().applicationContext
-        val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
-        val stack = RacePhotoProcessorFactory.createStack(appContext, repo)
-        faceDetector = stack.faceDetector
-        faceEmbedder = stack.faceEmbedder
-        photoProcessor = stack.processor
+        photoProcessor = (requireActivity().application as VirtualVolunteerApp).racePhotoProcessor
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -154,6 +156,26 @@ class CameraCaptureFragment : Fragment() {
             true
         }
 
+        orientationListener = object : OrientationEventListener(
+            requireContext(),
+            SensorManager.SENSOR_DELAY_NORMAL,
+        ) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN) return
+                // Must match Android CameraX docs — OrientationEventListener degrees map to
+                // Surface rotation differently than naive buckets; swapping 90↔270 breaks landscape EXIF.
+                val rotation = when (orientation) {
+                    in 45 until 135 -> Surface.ROTATION_270
+                    in 135 until 225 -> Surface.ROTATION_180
+                    in 225 until 315 -> Surface.ROTATION_90
+                    else -> Surface.ROTATION_0
+                }
+                if (rotation == captureTargetRotation) return
+                captureTargetRotation = rotation
+                imageCapture?.targetRotation = rotation
+            }
+        }
+
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
         ) {
@@ -178,9 +200,11 @@ class CameraCaptureFragment : Fragment() {
             previousRequestedOrientation = host.requestedOrientation
         }
         host.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        orientationListener?.takeIf { it.canDetectOrientation() }?.enable()
     }
 
     override fun onPause() {
+        orientationListener?.disable()
         val host = activity
         val prev = previousRequestedOrientation
         if (host != null && prev != null) {
@@ -199,6 +223,7 @@ class CameraCaptureFragment : Fragment() {
                 preview.setSurfaceProvider(b.cameraPreview.surfaceProvider)
                 imageCapture = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                    .setTargetRotation(captureTargetRotation)
                     .build()
 
                 val selector = CameraSelector.DEFAULT_BACK_CAMERA
@@ -338,14 +363,13 @@ class CameraCaptureFragment : Fragment() {
 
         val rotationDegrees = capture.targetRotation.let { rot ->
             when (rot) {
-                android.view.Surface.ROTATION_0 -> 0
-                android.view.Surface.ROTATION_90 -> 90
-                android.view.Surface.ROTATION_180 -> 180
-                android.view.Surface.ROTATION_270 -> 270
+                Surface.ROTATION_0 -> 0
+                Surface.ROTATION_90 -> 90
+                Surface.ROTATION_180 -> 180
+                Surface.ROTATION_270 -> 270
                 else -> 0
             }
         }
-
         val photoHeightPx = if (rotationDegrees % 180 == 0) outputSize.height else outputSize.width
         if (photoHeightPx <= 0) return
 
@@ -376,6 +400,8 @@ class CameraCaptureFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        orientationListener?.disable()
+        orientationListener = null
         fingerDownOnCaptureButton = false
         cancelDeferredContinuousChain()
         previewLayoutListener?.let { listener ->
@@ -388,12 +414,6 @@ class CameraCaptureFragment : Fragment() {
         lastAppliedGuideHeightPx = null
         previousRequestedOrientation = null
         _binding = null
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        if (this::faceDetector.isInitialized) faceDetector.close()
-        if (this::faceEmbedder.isInitialized) faceEmbedder.close()
     }
 
     companion object {

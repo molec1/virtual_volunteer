@@ -159,7 +159,7 @@ class RacePhotoProcessor(
         out
     }
 
-    /** Same bitmap space ML Kit expects: full decode + EXIF upright orientation. */
+    /** Full-frame decode + EXIF upright for ML Kit ([OrientedPhotoBitmap]); bitmap is short-lived. */
     internal fun loadVisionBitmap(photoFile: File) =
         OrientedPhotoBitmap.decodeApplyingExifOrientation(photoFile)
 

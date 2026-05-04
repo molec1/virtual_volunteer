@@ -14,10 +14,16 @@ import java.io.File
 object OrientedPhotoBitmap {
 
     /**
-     * Decode full-resolution bitmap with EXIF orientation applied. Caller must [Bitmap.recycle].
+     * Full-resolution decode with EXIF orientation applied for ML Kit / crops (matches stored JPEG
+     * pixel dimensions after upright correction). Uses [Bitmap.Config.ARGB_8888] — predictable for
+     * detectors, luminance normalization, and embedding crops. Caller must [Bitmap.recycle]; originals
+     * on disk are unchanged.
      */
     fun decodeApplyingExifOrientation(file: File): Bitmap? {
-        val decoded = BitmapFactory.decodeFile(file.absolutePath) ?: return null
+        val opts = BitmapFactory.Options().apply {
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+        val decoded = BitmapFactory.decodeFile(file.absolutePath, opts) ?: return null
         return applyExifOrientation(decoded, file.absolutePath)
     }
 

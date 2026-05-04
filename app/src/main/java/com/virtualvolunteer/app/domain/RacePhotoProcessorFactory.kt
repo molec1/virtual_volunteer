@@ -12,8 +12,8 @@ import com.virtualvolunteer.app.domain.participants.RoomRaceParticipantPool
  * and future threshold tweaks stay in one place.
  *
  * Each [createStack] call returns new [MlKitFaceDetector] and [TfliteFaceEmbedder] instances.
- * The caller owns them and must [MlKitFaceDetector.close] / [TfliteFaceEmbedder.close] when
- * done (e.g. in [androidx.fragment.app.Fragment.onDestroy]), same as before this factory existed.
+ * [VirtualVolunteerApp] keeps one stack for the process (finish queue + in-camera start ingest);
+ * do not close those detectors from UI code.
  */
 object RacePhotoProcessorFactory {
 

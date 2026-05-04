@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.util.Log
+import com.virtualvolunteer.app.BuildConfig
 import com.virtualvolunteer.app.data.files.FaceCropManifestDisk
 import com.virtualvolunteer.app.data.files.RacePaths
 import com.virtualvolunteer.app.data.local.EmbeddingSourceType
@@ -71,7 +72,7 @@ internal class StartPhotoIngestor(
                 Log.i(TAG, "face[${i + 1}] bbox=${face.boundingBox}")
             }
 
-            if (detected.isNotEmpty()) {
+            if (BuildConfig.DEBUG && detected.isNotEmpty()) {
                 val overlayFile = File(
                     debugDir,
                     "start_${photoFile.nameWithoutExtension}_${System.currentTimeMillis()}.jpg",
