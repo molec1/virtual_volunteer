@@ -79,6 +79,32 @@ val syncTfliteNativeForRegression = tasks.register("syncTfliteNativeForRegressio
     }
 }
 
+tasks.register<JavaExec>("seriesParamSweep") {
+    group = "verification"
+    description =
+        "Grid search over SERIES_MIN_COSINE × SERIES_PHOTO_WINDOW_MS on testdata/face_matching/. " +
+            "Writes build/series-param-sweep/results.csv. " +
+            "Optional: -PseriesCosines=0.2,0.3,0.4 -PseriesTimesMs=500,1000,2000"
+    dependsOn(syncTfliteNativeForRegression)
+    classpath = sourceSets["main"].runtimeClasspath + files(tfliteNativeJar)
+    mainClass.set("com.virtualvolunteer.regression.jvm.SeriesParamSweepMainKt")
+    workingDir = rootProject.layout.projectDirectory.asFile
+    val outFile = rootProject.layout.buildDirectory.file("series-param-sweep/results.csv").get().asFile
+    val testdataRoot = rootProject.file("testdata/face_matching")
+    val model = rootProject.file("app/src/main/assets/models/face_embedding.tflite")
+    args(
+        "--testdata-root", testdataRoot.absolutePath,
+        "--model", model.absolutePath,
+        "--out", outFile.absolutePath,
+    )
+    rootProject.findProperty("seriesCosines")?.toString()?.let { args("--cosines", it) }
+    rootProject.findProperty("seriesTimesMs")?.toString()?.let { args("--times-ms", it) }
+    systemProperty("org.slf4j.simpleLogger.defaultLogLevel", "warn")
+    systemProperty("org.slf4j.simpleLogger.log.ai.djl", "warn")
+    standardOutput = System.out
+    errorOutput = System.err
+}
+
 tasks.register<JavaExec>("faceEmbeddingRegressionTest") {
     group = "verification"
     description =

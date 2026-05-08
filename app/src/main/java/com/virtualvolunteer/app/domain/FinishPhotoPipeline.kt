@@ -35,8 +35,8 @@ internal class FinishPhotoPipeline(
 ) {
     companion object {
         private const val TAG = "RacePhotoProcessor"
-        private const val SERIES_PHOTO_WINDOW_MS = 1_000L
-        private const val SERIES_MIN_COSINE = 0.4f
+        private const val SERIES_PHOTO_WINDOW_MS = 3_000L
+        private const val SERIES_MIN_COSINE = 0.3f
         private const val SERIES_MAX_CENTER_DELTA = 0.12f
         private const val SERIES_MAX_SIZE_RATIO = 2.25f
         private val FINISH_FILENAME_MILLIS = Regex("""^finish_(\d{10,})""")
