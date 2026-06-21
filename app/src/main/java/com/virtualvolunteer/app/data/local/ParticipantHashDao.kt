@@ -102,13 +102,14 @@ interface ParticipantHashDao {
             ) AS raceStartedAtEpochMillis,
             h.createdAtEpochMillis AS createdAtEpochMillis,
             h.protocolFinishTimeEpochMillis AS finishTimeEpochMillis,
-            h.displayName AS displayName
+            h.displayName AS displayName,
+            h.isVolunteer AS isVolunteer
         FROM race_participant_hashes h
         INNER JOIN races r ON r.id = h.raceId
         LEFT JOIN identity_registry ir ON ir.id = h.identityRegistryId
         WHERE h.raceId = :raceId
         ORDER BY 
-            CASE WHEN h.protocolFinishTimeEpochMillis IS NULL THEN 1 ELSE 0 END ASC,
+            CASE WHEN h.isVolunteer = 1 THEN 2 WHEN h.protocolFinishTimeEpochMillis IS NULL THEN 1 ELSE 0 END ASC,
             h.protocolFinishTimeEpochMillis ASC,
             h.id ASC
         """,
@@ -144,13 +145,14 @@ interface ParticipantHashDao {
             ) AS raceStartedAtEpochMillis,
             h.createdAtEpochMillis AS createdAtEpochMillis,
             h.protocolFinishTimeEpochMillis AS finishTimeEpochMillis,
-            h.displayName AS displayName
+            h.displayName AS displayName,
+            h.isVolunteer AS isVolunteer
         FROM race_participant_hashes h
         INNER JOIN races r ON r.id = h.raceId
         LEFT JOIN identity_registry ir ON ir.id = h.identityRegistryId
         WHERE h.raceId = :raceId
         ORDER BY 
-            CASE WHEN h.protocolFinishTimeEpochMillis IS NULL THEN 1 ELSE 0 END ASC,
+            CASE WHEN h.isVolunteer = 1 THEN 2 WHEN h.protocolFinishTimeEpochMillis IS NULL THEN 1 ELSE 0 END ASC,
             h.protocolFinishTimeEpochMillis ASC,
             h.id ASC
         """,

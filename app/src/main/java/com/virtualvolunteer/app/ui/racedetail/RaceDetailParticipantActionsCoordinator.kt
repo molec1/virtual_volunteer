@@ -89,4 +89,33 @@ class RaceDetailParticipantActionsCoordinator(
         }
         dialog.show()
     }
+
+    /**
+     * Shows a confirmation dialog for the drag-to-merge gesture.
+     * [donorId] is the dragged row; [keeperId] is the drop target that survives.
+     * [donorLabel] / [keeperLabel] are display strings shown in the dialog message.
+     */
+    fun confirmMergeParticipants(
+        donorId: Long,
+        keeperId: Long,
+        donorLabel: String,
+        keeperLabel: String,
+    ) {
+        val message = fragment.getString(
+            R.string.merge_participants_message,
+            donorLabel,
+            keeperLabel,
+        )
+        MaterialAlertDialogBuilder(fragment.requireContext())
+            .setTitle(R.string.merge_participants_title)
+            .setMessage(message)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.merge_participants_confirm) { _, _ ->
+                fragment.lifecycleScope.launch(Dispatchers.IO) {
+                    (fragment.requireActivity().application as VirtualVolunteerApp).raceRepository
+                        .mergeParticipantRowIntoKeeper(raceId, keeperId = keeperId, donorId = donorId)
+                }
+            }
+            .show()
+    }
 }

@@ -17,4 +17,5 @@ data class ParticipantDashboardDbRow(
     val createdAtEpochMillis: Long,
     val finishTimeEpochMillis: Long?,
     val displayName: String?,
+    val isVolunteer: Boolean,
 )

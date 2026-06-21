@@ -48,6 +48,16 @@ class RaceDetailRaceFlowActions(
         )
     }
 
+    fun onTakeVolunteerPhotoClicked() {
+        fragment.findNavController().navigate(
+            R.id.action_race_detail_to_cameraCaptureFragment,
+            bundleOf(
+                CameraCaptureFragment.ARG_RACE_ID to raceId,
+                CameraCaptureFragment.ARG_CAPTURE_MODE to CameraCaptureFragment.MODE_VOLUNTEER_PHOTO,
+            ),
+        )
+    }
+
     fun onFinishRaceClicked() {
         MaterialAlertDialogBuilder(fragment.requireContext())
             .setTitle(R.string.finish_race_confirm_title)

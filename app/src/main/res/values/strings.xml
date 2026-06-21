@@ -47,6 +47,8 @@
     <string name="test_protocol_built">Test protocol built. Debug log saved.</string>
     <string name="test_protocol_failed">Could not build test protocol</string>
     <string name="btn_reprocess_race">Reprocess race from disk</string>
+    <string name="btn_export_debug_bundle">Export debug bundle (no photos)</string>
+    <string name="export_debug_bundle_failed">Debug export failed</string>
     <string name="reprocess_race_title">Reprocess race?</string>
     <string name="reprocess_race_message">Deletes all participants, finish times, and face crops for this race, then re-runs detection and matching on every stored start and finish photo. Original full-frame photos are kept. Scan codes and names are reapplied when a new face matches the saved embedding (same threshold as finish matching).</string>
     <string name="reprocess_race_confirm">Reprocess</string>
@@ -95,10 +97,8 @@
     <string name="finish_race_confirm_title">Finish race?</string>
     <string name="finish_race_confirm_message">Finishing a race will stop the timer and prevent further finish photo processing. You can still export results.</string>
     <string name="action_finish">Finish</string>
-    <string name="btn_add_manual_finish">Add manual finish</string>
-    <string name="manual_finish_sheet_title">Manual finish</string>
-    <string name="manual_finish_participant_label">Participant ID</string>
-    <string name="manual_finish_participant_hint">Enter participant ID</string>
+    <string name="btn_add_manual_finish">Add participant manually</string>
+    <string name="manual_finish_sheet_title">Add participant manually</string>
     <string name="manual_finish_time_label">Finish time</string>
     <string name="manual_finish_select_photo">Select photo (use EXIF time)</string>
     <string name="manual_finish_race_finish_photos_label">Finish photos in this race (tap one)</string>
@@ -108,12 +108,9 @@
     <string name="manual_finish_pick_time">Pick time</string>
     <string name="manual_finish_manual_time_fmt">Manual time: %1$s</string>
     <string name="action_confirm">Confirm</string>
-    <string name="manual_finish_error_no_participant">Participant ID is required</string>
-    <string name="manual_finish_error_invalid_participant_id">Invalid Participant ID</string>
     <string name="manual_finish_error_no_time">Please select a time or photo for the finish</string>
-    <string name="manual_finish_error_participant_not_found">Participant not found in this race</string>
-    <string name="manual_finish_error_generic">Failed to record manual finish</string>
-    <string name="manual_finish_success">Manual finish recorded. Official time: %1$s</string>
+    <string name="manual_finish_error_generic">Failed to add participant</string>
+    <string name="manual_finish_success">Participant added. Official time: %1$s</string>
     <string name="manual_finish_no_photo_selected">No photo selected</string>
     <string name="btn_lookup_participant">Lookup participant (face)</string>
     <string name="btn_face_lookup_cd">Face lookup — link scan and identity like barcode</string>
@@ -155,8 +152,12 @@
     <string name="camera_capture_status_saving">Saving…</string>
     <string name="camera_capture_status_processing">Processing…</string>
     <string name="camera_capture_status_saved">Saved</string>
+    <string name="camera_lens_select_cd">Switch lens — current: %1$s</string>
     <string name="camera_capture_start_hint">Pre-start faces — tap Capture for one photo, or hold for continuous shots. Done returns to the race.</string>
     <string name="camera_capture_finish_hint">Finish line — tap Capture for one photo, or hold for continuous shots. Done returns to the race.</string>
+    <string name="camera_capture_volunteer_hint">Volunteers — tap Capture for one photo, or hold for continuous shots. Done returns to the race.</string>
+    <string name="btn_take_volunteer_photo">Take volunteer photo</string>
+    <string name="participant_volunteer_label">Volunteer</string>
     <string name="race_event_photos_header">All event photos</string>
     <string name="race_event_photos_empty">No start or finish photos in this race yet.</string>
     <string name="race_event_photo_thumb_cd">Event photo thumbnail</string>
@@ -170,4 +171,8 @@
     <string name="race_event_photo_delete_message">The image file will be removed. Finish times that used this frame as evidence may be cleared or recomputed.</string>
     <string name="race_event_photo_delete_failed">Could not delete photo</string>
     <string name="race_event_photo_load_failed">Could not load image</string>
+    <string name="photo_counter">%1$d / %2$d</string>
+    <string name="merge_participants_title">Объединить участников?</string>
+    <string name="merge_participants_message">«%1$s» будет объединён с «%2$s». Время финиша и данные о лице перейдут на оставшуюся запись.</string>
+    <string name="merge_participants_confirm">Объединить</string>
 </resources>

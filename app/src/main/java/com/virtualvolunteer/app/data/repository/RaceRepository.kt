@@ -208,8 +208,14 @@ class RaceRepository(
     /**
      * Detaches one embedding from a linked identity "group":
      * - creates a new protocol participant row in the same race (no registry link, no scan code),
-     * - moves this embedding row to the new participant,
+     *   with the face-crop thumbnail resolved from [FaceCropManifestDisk] and the finish photo as
+     *   [RaceParticipantHashEntity.primaryThumbnailPhotoPath] — not copied from the original owner,
+     * - moves this embedding row (and any corresponding finish detections) to the new participant,
+     * - reassigns the [FaceCropManifestDisk] entry for the detached photo to the new participant,
      * - blacklists the detached embedding against all other embeddings in the old group (and registry vector, if any),
+     * - **rebalances the group**: any remaining FINISH-type embeddings of the owner that are more
+     *   similar (cosine) to the detached face than to the owner's remaining embeddings are moved
+     *   to the new participant together with their detections and manifest entries,
      * - refreshes protocol XML for the race.
      */
     suspend fun detachEmbeddingFromGroup(embeddingId: Long) {
@@ -233,30 +239,43 @@ class RaceRepository(
         }
         blacklistEmbeddingPairsByStrings(emb.embedding, otherEmbeddingStrings)
 
-        // Create new protocol row in the same race. Keep thumbnails to make it visible, but
-        // remove scan + registry link so it won't be auto-merged back.
         val sourcePhoto = emb.sourcePhotoPath?.takeIf { it.isNotBlank() } ?: owner.sourcePhoto
+
+        // Resolve the face-crop thumbnail from the manifest for the new participant's photo.
+        // The manifest entry is keyed by (sourcePhoto, owner.id) — we reassign it afterwards.
+        val manifestEntry = FaceCropManifestDisk.findEntryForPhoto(appContext, owner.raceId, sourcePhoto, owner.id)
+        val newFaceThumbnailPath = manifestEntry?.cropFilePath?.takeIf { File(it).exists() }
+
+        // Create new protocol row. Use the crop from the manifest as face thumbnail, and the
+        // full finish frame as primary thumbnail — distinct from the owner's thumbnails.
         val newRow = RaceParticipantHashEntity(
             raceId = owner.raceId,
             embedding = "",
             embeddingFailed = true,
             sourcePhoto = sourcePhoto,
-            faceThumbnailPath = owner.faceThumbnailPath,
+            faceThumbnailPath = newFaceThumbnailPath,
             scannedPayload = null,
             registryInfo = null,
             identityRegistryId = null,
             displayName = null,
             firstFinishSeenAtEpochMillis = null,
             protocolFinishTimeEpochMillis = null,
-            primaryThumbnailPhotoPath = owner.primaryThumbnailPhotoPath,
+            primaryThumbnailPhotoPath = sourcePhoto,
             createdAtEpochMillis = emb.createdAtEpochMillis,
         )
         val newParticipantId = participantHashDao.insert(newRow)
 
         participantEmbeddingDao.reassignEmbeddingToParticipant(embeddingId = emb.id, newParticipantId = newParticipantId)
 
-        // If this embedding came from a finish photo, also move the corresponding detection evidence
-        // so the protocol row separation is visible in the race participant photo list and finish times.
+        // Reassign the manifest entry so the face box on this photo points to the new participant.
+        if (manifestEntry != null) {
+            FaceCropManifestDisk.upsertReplaceParticipantOnSource(
+                appContext, owner.raceId,
+                manifestEntry.copy(participantHashId = newParticipantId),
+            )
+        }
+
+        // Move finish detections for the detached photo to the new participant.
         val src = emb.sourcePhotoPath?.takeIf { it.isNotBlank() }
         if (src != null) {
             val targetCanonical = runCatching { File(src).canonicalPath }.getOrNull()
@@ -266,6 +285,58 @@ class RaceRepository(
                     val dCanon = runCatching { File(d.sourcePhotoPath).canonicalPath }.getOrNull()
                     if (dCanon == targetCanonical) {
                         finishDetectionDao.reassignParticipantForDetectionId(d.id, newParticipantId)
+                    }
+                }
+            }
+        }
+
+        // Rebalance the group: check all remaining FINISH-type embeddings of owner.
+        // Any that are more similar to the detached face than to the owner's remaining embeddings
+        // are moved to the new participant together with their detections and manifest entries.
+        val detachedVec = runCatching { EmbeddingMath.parseCommaSeparated(emb.embedding) }
+            .getOrNull()?.takeIf { it.isNotEmpty() }
+        if (detachedVec != null) {
+            val ownerEmbsNow = participantEmbeddingDao.listForParticipant(owner.id)
+            val finishCandidates = ownerEmbsNow.filter { e ->
+                e.embedding.isNotBlank() &&
+                    e.sourceType != EmbeddingSourceType.START &&
+                    !e.sourcePhotoPath.isNullOrBlank()
+            }
+            // Snapshot remaining detections now (after initial reassignment) to avoid repeated queries.
+            val ownerRemainingDets = finishDetectionDao.listForParticipantSorted(owner.raceId, owner.id)
+            val movedDetIds = HashSet<Long>()
+            for (candidate in finishCandidates) {
+                val candidateVec = runCatching { EmbeddingMath.parseCommaSeparated(candidate.embedding) }
+                    .getOrNull()?.takeIf { it.size == detachedVec.size } ?: continue
+                val simToDetached = EmbeddingMath.cosineSimilarity(candidateVec, detachedVec)
+                // Compare against all other remaining owner embeddings (snapshot; excludes this candidate).
+                val simToOwner = ownerEmbsNow
+                    .filter { it.id != candidate.id && it.embedding.isNotBlank() }
+                    .mapNotNull { runCatching { EmbeddingMath.parseCommaSeparated(it.embedding) }.getOrNull() }
+                    .filter { it.size == candidateVec.size }
+                    .maxOfOrNull { EmbeddingMath.cosineSimilarity(candidateVec, it) } ?: -1f
+                if (simToDetached <= simToOwner) continue
+
+                participantEmbeddingDao.reassignEmbeddingToParticipant(candidate.id, newParticipantId)
+                val candSrc = candidate.sourcePhotoPath!!
+                val candCanonical = runCatching { File(candSrc).canonicalPath }.getOrNull()
+                if (candCanonical != null) {
+                    for (d in ownerRemainingDets) {
+                        if (d.id in movedDetIds) continue
+                        val dCanon = runCatching { File(d.sourcePhotoPath).canonicalPath }.getOrNull()
+                        if (dCanon == candCanonical) {
+                            finishDetectionDao.reassignParticipantForDetectionId(d.id, newParticipantId)
+                            movedDetIds.add(d.id)
+                        }
+                    }
+                    val movedEntry = FaceCropManifestDisk.findEntryForPhoto(
+                        appContext, owner.raceId, candSrc, owner.id,
+                    )
+                    if (movedEntry != null) {
+                        FaceCropManifestDisk.upsertReplaceParticipantOnSource(
+                            appContext, owner.raceId,
+                            movedEntry.copy(participantHashId = newParticipantId),
+                        )
                     }
                 }
             }
@@ -532,6 +603,40 @@ class RaceRepository(
     }
 
     /**
+     * Creates a new protocol participant with no embedding or scan, and records a single finish
+     * detection for them. The participant can later be identified via barcode scan or face lookup.
+     */
+    suspend fun createManualParticipant(
+        raceId: String,
+        finishTimeEpochMillis: Long,
+        sourcePhotoPath: String? = null,
+    ): RecordFinishDetectionOutcome {
+        val row = RaceParticipantHashEntity(
+            raceId = raceId,
+            embedding = "",
+            embeddingFailed = true,
+            sourcePhoto = sourcePhotoPath ?: "",
+            faceThumbnailPath = null,
+            scannedPayload = null,
+            registryInfo = null,
+            identityRegistryId = null,
+            displayName = null,
+            firstFinishSeenAtEpochMillis = null,
+            protocolFinishTimeEpochMillis = null,
+            primaryThumbnailPhotoPath = sourcePhotoPath,
+            createdAtEpochMillis = System.currentTimeMillis(),
+        )
+        val participantId = participantHashDao.insert(row)
+        return finishRecorder.recordManualFinishDetection(
+            raceId = raceId,
+            participantId = participantId,
+            finishTimeEpochMillis = finishTimeEpochMillis,
+            sourcePhotoPath = sourcePhotoPath,
+            sourceEmbedding = null,
+        )
+    }
+
+    /**
      * Stores a matched finish detection and recomputes official protocol finish time for that participant.
      */
     suspend fun recordManualFinishDetection(
@@ -586,14 +691,16 @@ class RaceRepository(
         ingestFinishNewRows: suspend (String, File) -> Result<Int>,
         progressLog: (String) -> Unit = {},
     ): RaceReprocessResult {
-        require(raceDao.getRace(raceId) != null) { "Race not found" }
+        val existingRace = requireNotNull(raceDao.getRace(raceId)) { "Race not found" }
+        val startTimeBeforeReprocess = existingRace.startedAtEpochMillis
         val hints = RaceRepositoryDiskReprocess.buildHints(
             participantHashDao,
             participantEmbeddingDao,
             raceId,
         )
         progressLog(
-            "REPROCESS_BEGIN race=${raceId.take(8)}… hints=${hints.size}",
+            "REPROCESS_BEGIN race=${raceId.take(8)}… hints=${hints.size} " +
+                "preservingStartTime=${startTimeBeforeReprocess != null}",
         )
         RaceRepositoryDiskReprocess.wipeParticipantRowsAndAuxFaceDirs(
             appContext,
@@ -615,7 +722,9 @@ class RaceRepository(
                     "facesInsertedThisFile=${r.getOrNull() ?: 0}",
             )
         }
-        applyOfflineRaceStartFromStartPhotos(raceId)
+        if (startTimeBeforeReprocess == null) {
+            applyOfflineRaceStartFromStartPhotos(raceId)
+        }
         val finishFiles = RaceEventPhotosLister.listFinishPhotoFilesSortedOldestFirst(appContext, raceId)
         var finishPipelineNewRows = 0
         var finishIngestFailures = 0
@@ -640,13 +749,17 @@ class RaceRepository(
             repo = this,
             identityRegistryDao = identityRegistryDao,
         )
+        if (startTimeBeforeReprocess != null) {
+            updateRaceStartedAtEpochMillis(raceId, startTimeBeforeReprocess)
+        }
         ensureRaceListThumbnail(raceId)
         refreshProtocolXml(raceId)
         consolidateScanMergesForRace(raceId)
         progressLog(
             "REPROCESS_END startFiles=${startFiles.size} startFail=$startIngestFailures " +
                 "finishFiles=${finishFiles.size} finishFail=$finishIngestFailures " +
-                "hintsRestored=$identityHintsRestored",
+                "hintsRestored=$identityHintsRestored " +
+                "startTimePreserved=${startTimeBeforeReprocess != null}",
         )
         return RaceReprocessResult(
             startPhotosProcessed = startFiles.size,

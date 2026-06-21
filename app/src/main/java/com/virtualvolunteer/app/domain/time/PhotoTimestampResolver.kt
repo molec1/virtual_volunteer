@@ -11,8 +11,13 @@ import java.util.TimeZone
 /**
  * Resolves a best-effort capture time for a photo file for offline protocol timing.
  *
- * Priority: EXIF DateTimeOriginal / DateTime → filename embedded millis (import_123_...) →
- * lastModified → current time.
+ * Priority: EXIF DateTimeOriginal / DateTime → filename embedded millis → lastModified → current time.
+ *
+ * Filename millis patterns (checked in order):
+ *   - `finish_<millis>.jpg`  — app finish capture (`finish_1234567890123.jpg`)
+ *   - `start_<millis>.jpg`   — app start capture  (`start_1234567890123.jpg`)
+ *   - `import_<millis>_`     — gallery import      (`import_1234567890123_orig.jpg`)
+ *   - `_<millis>.ext`        — generic suffix millis (`anything_1234567890123.jpg`)
  */
 object PhotoTimestampResolver {
 
@@ -25,7 +30,13 @@ object PhotoTimestampResolver {
         },
     )
 
-    private val importMillisRegex = Regex("""import_(\d{10,})_""")
+    /** Ordered list of patterns; first match wins. Each must have exactly one capture group. */
+    private val filenameMillisPatterns = listOf(
+        Regex("""^finish_(\d{10,})\."""),   // finish_<millis>.jpg
+        Regex("""^start_(\d{10,})\."""),    // start_<millis>.jpg
+        Regex("""import_(\d{10,})_"""),     // import_<millis>_orig.jpg
+        Regex("""_(\d{10,})\."""),          // anything_<millis>.jpg
+    )
 
     /**
      * Returns epoch millis for this file using the priority chain above.
@@ -84,7 +95,10 @@ object PhotoTimestampResolver {
     }
 
     private fun filenameEpochMillis(name: String): Long? {
-        val m = importMillisRegex.find(name) ?: return null
-        return m.groupValues[1].toLongOrNull()
+        for (pattern in filenameMillisPatterns) {
+            val m = pattern.find(name) ?: continue
+            return m.groupValues[1].toLongOrNull() ?: continue
+        }
+        return null
     }
 }

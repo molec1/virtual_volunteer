@@ -175,6 +175,14 @@
                 android:layout_marginTop="10dp"
                 android:text="@string/btn_add_manual_finish" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnTakeVolunteerPhoto"
+                style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="@string/btn_take_volunteer_photo" />
+
         </LinearLayout>
 
         <!-- Export -->
@@ -370,6 +378,14 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
                         android:text="@string/btn_test_single_finish_photo" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnExportDebugBundle"
+                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/btn_export_debug_bundle" />
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

@@ -46,6 +46,7 @@ Paths are from `app/src/main/java/com/virtualvolunteer/app/` unless noted as `re
 | Finish detection insert + protocol outcome (manual + auto) | `data/repository/RaceFinishDetectionRecorder.kt` |
 | Start + finish photo orchestration (delegates to ingest/pipeline/debug/test helpers) | `domain/RacePhotoProcessor.kt`, `domain/RacePhotoProcessorFactory.kt` (construct processor + detector/embedder stack) |
 | Start photo ingest (detect, crop, embed, insert, offline start) | `domain/StartPhotoIngestor.kt` |
+| Volunteer photo ingest (same filters as start; sets `isVolunteer=true`; skipped in finish detection) | `domain/VolunteerPhotoIngestor.kt` |
 | Finish photo pipeline (match pool, record detection, optional new participant) | `domain/FinishPhotoPipeline.kt` |
 | Finish photo analysis queue (CameraX path: save JPEG then background ingest) | `domain/FinishPhotoAnalysisQueue.kt`, `VirtualVolunteerApp.finishPhotoAnalysisQueue` |
 | Finish photo debug report (no persistence) | `domain/FinishPhotoDebugAnalyzer.kt` |
@@ -79,7 +80,7 @@ Paths are from `app/src/main/java/com/virtualvolunteer/app/` unless noted as `re
 | Area | Kotlin | Layouts / list items (`res/layout/`) |
 |------|--------|--------------------------------------|
 | **Race list** | `ui/racelist/RaceListFragment.kt`, `RaceListAdapter.kt` | `fragment_race_list.xml`, `race_row.xml` |
-| **Race detail** (orchestrates UI; imports/share/debug helpers alongside) | `ui/racedetail/RaceDetailFragment.kt`, `ParticipantDashboardAdapter.kt`, `RaceDetailPhotoBulkImporter.kt`, `RaceDetailShareHelper.kt`, `RaceDetailFinishDebugFormat.kt`, `RaceDetailParticipantSectionUi.kt`, `RaceDetailCollapsibleSectionsController.kt`, `RaceEventPhotosGridAdapter.kt`, `RaceEventPhotoViewerDialogFragment.kt` | `fragment_race_detail.xml`, `participant_dashboard_row.xml`, `item_race_event_photo_thumb.xml`, `dialog_race_event_photo_viewer.xml` |
+| **Race detail** (orchestrates UI; imports/share/debug helpers alongside) | `ui/racedetail/RaceDetailFragment.kt`, `ParticipantDashboardAdapter.kt`, `ParticipantMergeDragCallback.kt` (long-press drag-to-merge rows), `RaceDetailPhotoBulkImporter.kt`, `RaceDetailShareHelper.kt`, `RaceDetailFinishDebugFormat.kt`, `RaceDetailParticipantSectionUi.kt`, `RaceDetailCollapsibleSectionsController.kt`, `RaceEventPhotosGridAdapter.kt`, `RaceEventPhotoViewerDialogFragment.kt` | `fragment_race_detail.xml`, `participant_dashboard_row.xml`, `item_race_event_photo_thumb.xml`, `dialog_race_event_photo_viewer.xml` |
 | **Participant detail** (embedding previews, remove face data, delete device identity) | `ui/racedetail/ParticipantDetailFragment.kt` | `fragment_participant_detail.xml`, `item_participant_detail_race_row.xml`, `item_participant_embedding_preview.xml` |
 | **Face lookup** (assign scan from cosine-ranked codes) | `ui/racedetail/ParticipantLookupBottomSheet.kt`, `ParticipantLookupAdapter.kt`, `ParticipantLookupEmbeddings.kt` | `item_participant_lookup_result.xml` |
 | **Participant / race photos** (grid + full-screen zoom/share) | `ui/racedetail/ParticipantPhotosBottomSheet.kt`, `ParticipantRacePhotoAdapter.kt`, `RaceParticipantPhotosBottomSheet.kt`, `ParticipantProtocolPhotoViewerDialogFragment.kt` | `item_participant_race_photo.xml`, `dialog_participant_protocol_photo_viewer.xml` |

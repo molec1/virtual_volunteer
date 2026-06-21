@@ -103,6 +103,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycleVersion")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:$lifecycleVersion")
     implementation("androidx.fragment:fragment-ktx:1.8.5")
+    implementation("androidx.viewpager2:viewpager2:1.1.0")
 
     // JitPack builds from https://github.com/Baseflow/PhotoView (tag 2.3.0)
     implementation("com.github.Baseflow:PhotoView:2.3.0")

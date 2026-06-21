@@ -12,6 +12,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.data.files.UriFileCopy
 import com.virtualvolunteer.app.domain.RacePhotoProcessor
+import com.virtualvolunteer.app.export.RaceZipExporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -86,6 +87,23 @@ class RaceDetailOfflineTestActions(
                 }
             }
             .show()
+    }
+
+    fun onExportDebugBundleClicked() {
+        val ctx = fragment.requireContext()
+        fragment.lifecycleScope.launch(Dispatchers.IO) {
+            val appCtx = ctx.applicationContext
+            val result = RaceZipExporter.exportDebugBundle(appCtx, raceId)
+            withContext(Dispatchers.Main) {
+                result.onSuccess { zip ->
+                    Log.i(logTag, "exportDebugBundle path=${zip.absolutePath} size=${zip.length()}")
+                    RaceDetailShareHelper.shareZip(ctx, zip)
+                }.onFailure {
+                    Toast.makeText(ctx, R.string.export_debug_bundle_failed, Toast.LENGTH_SHORT).show()
+                    Log.w(logTag, "exportDebugBundle failed", it)
+                }
+            }
+        }
     }
 
     fun launchSingleFinishPhotoDebug(uri: Uri) {

@@ -35,6 +35,9 @@ object RacePaths {
     fun finishPhotosDir(context: Context, raceId: String): File =
         File(raceFolder(context, raceId), "finish_photos")
 
+    fun volunteerPhotosDir(context: Context, raceId: String): File =
+        File(raceFolder(context, raceId), "volunteer_photos")
+
     /** Cropped face thumbnails from start-photo detection (JPEG). */
     fun facesDir(context: Context, raceId: String): File =
         File(raceFolder(context, raceId), "faces")
@@ -79,6 +82,7 @@ object RacePaths {
         root.mkdirs()
         startPhotosDir(context, raceId).mkdirs()
         finishPhotosDir(context, raceId).mkdirs()
+        volunteerPhotosDir(context, raceId).mkdirs()
         facesDir(context, raceId).mkdirs()
         debugDir(context, raceId).mkdirs()
         exportDir(context, raceId).mkdirs()

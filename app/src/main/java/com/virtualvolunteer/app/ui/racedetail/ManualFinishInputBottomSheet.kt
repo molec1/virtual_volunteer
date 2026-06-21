@@ -133,25 +133,15 @@ class ManualFinishInputBottomSheet : BottomSheetDialogFragment() {
     }
 
     private fun confirmManualFinish() {
-        val participantIdText = binding.participantIdInput.text?.toString()?.trim()
-        val participantId = participantIdText?.toLongOrNull()
-
-        if (participantId == null) {
-            Toast.makeText(requireContext(), R.string.manual_finish_error_no_participant, Toast.LENGTH_SHORT).show()
-            return
-        }
-
         val finishTime = selectedPhotoTime ?: manualCalendar.timeInMillis
 
         lifecycleScope.launch(Dispatchers.IO) {
             val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
             try {
-                val outcome = repo.recordManualFinishDetection(
+                val outcome = repo.createManualParticipant(
                     raceId = raceId,
-                    participantId = participantId,
                     finishTimeEpochMillis = finishTime,
                     sourcePhotoPath = selectedPhotoPath,
-                    sourceEmbedding = null,
                 )
                 withContext(Dispatchers.Main) {
                     Toast.makeText(
@@ -165,13 +155,9 @@ class ManualFinishInputBottomSheet : BottomSheetDialogFragment() {
                     dismiss()
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "manual finish failed", e)
-                val msg = when (e) {
-                    is IllegalArgumentException -> R.string.manual_finish_error_invalid_participant_id
-                    else -> R.string.manual_finish_error_generic
-                }
+                Log.e(TAG, "manual participant creation failed", e)
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
+                    Toast.makeText(requireContext(), R.string.manual_finish_error_generic, Toast.LENGTH_LONG).show()
                 }
             }
         }

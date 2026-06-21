@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.util.Log
-import com.virtualvolunteer.app.BuildConfig
 import com.virtualvolunteer.app.data.files.FaceCropManifestDisk
 import com.virtualvolunteer.app.data.files.RacePaths
 import com.virtualvolunteer.app.data.local.EmbeddingSourceType
@@ -12,7 +11,6 @@ import com.virtualvolunteer.app.data.local.RaceParticipantHashEntity
 import com.virtualvolunteer.app.data.repository.RaceRepository
 import com.virtualvolunteer.app.domain.face.EmbeddingMath
 import com.virtualvolunteer.app.domain.face.FaceCropBounds
-import com.virtualvolunteer.app.domain.face.FaceDebugOverlay
 import com.virtualvolunteer.app.domain.face.FaceEmbedder
 import com.virtualvolunteer.app.domain.face.FaceThumbnailSaver
 import com.virtualvolunteer.app.domain.face.MlKitFaceDetector
@@ -24,7 +22,20 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
-internal class StartPhotoIngestor(
+/**
+ * Processes a volunteer photo: detects faces, embeds them, and inserts them as protocol
+ * participants with [RaceParticipantHashEntity.isVolunteer] = true.
+ *
+ * Volunteers enter the matching pool so the finish pipeline recognises them and avoids
+ * creating spurious finish rows or assigning finish times to known volunteers.
+ *
+ * Processing rules mirror [StartPhotoIngestor]: same size filters, same peripheral filter,
+ * same duplicate check against the existing pool.  The only differences are:
+ *  - [RaceParticipantHashEntity.isVolunteer] is set to true on every inserted row.
+ *  - No race-start-time side-effect (volunteers appear at any point in the event).
+ *  - Photos are saved under [RacePaths.volunteerPhotosDir], not start_photos.
+ */
+internal class VolunteerPhotoIngestor(
     private val appContext: Context,
     private val races: RaceRepository,
     private val faces: MlKitFaceDetector,
@@ -35,37 +46,11 @@ internal class StartPhotoIngestor(
 ) {
     companion object {
         private const val TAG = "RacePhotoProcessor"
-
-        /**
-         * Absolute horizontal-edge cutoff for start-photo face seeding.
-         *
-         * Faces whose normalised bounding-box centre X is more than this fraction from the
-         * image horizontal midpoint are skipped entirely — no embedding, no participant row.
-         * Unlike the finish-photo profile filter, no "dominated" condition is required here:
-         * start photos can legitimately have all faces at the periphery (crowd at the side),
-         * in which case a domination check would keep at least the most-central outlier.
-         *
-         * Rationale: participants at the start line approach the camera approximately face-on;
-         * spectators and volunteers standing at the side of the corridor appear near the frame
-         * edge.  Embedding those edge faces seeds garbage vectors into the matching pool and
-         * causes spurious finish-line identifications (e.g. race cc7a5378 pid=1143 seeded
-         * from a back-of-head at cx=0.700, drew four incorrect finish matches, and appeared
-         * as protocol row 7 marked TRASH by the operator).
-         *
-         * Value 0.20 means only faces whose centre is within the central 60 % of the frame
-         * width (cx ∈ [0.30, 0.70]) are accepted as participant seeds.
-         */
-        internal const val START_PERIPHERAL_HARD_X = 0.20f
     }
 
-    /**
-     * Stage 1: ML Kit on EXIF-upright bitmap. Stage 2: expand+crop, thumbnail, TFLite embedding.
-     * Inserts a participant row whenever crop succeeds; [RaceParticipantHashEntity.embeddingFailed]
-     * marks TFLite failures while keeping the row visible for debugging.
-     */
     suspend fun ingest(raceId: String, photoFile: File): Result<Int> = runCatching {
         RacePaths.ensureRaceLayout(appContext, raceId)
-        pipelineLog("—— ingestStartPhoto ——")
+        pipelineLog("—— ingestVolunteerPhoto ——")
         pipelineLog("raceId=${raceId.take(8)}… sourceFile=${photoFile.name}")
         pipelineLog(OrientedPhotoBitmap.describeExifOrientation(photoFile))
 
@@ -78,57 +63,26 @@ internal class StartPhotoIngestor(
         pipelineLog("visionBitmap=${bmp.width}x${bmp.height} (after EXIF upright correction)")
 
         val facesDir = RacePaths.facesDir(appContext, raceId)
-        val debugDir = RacePaths.debugDir(appContext, raceId)
-        debugDir.mkdirs()
         val createdAt = PhotoTimestampResolver.resolveEpochMillis(photoFile)
         val margin = FaceCropBounds.DEFAULT_MARGIN_PER_SIDE
 
         try {
             val detected = faces.detectFaces(bmp)
             pipelineLog("detectedFaceCount=${detected.size}")
-            Log.i(TAG, "ingestStartPhoto detectedFaceCount=${detected.size}")
-
-            detected.forEachIndexed { i, face ->
-                pipelineLog("detectorFace[${i + 1}] boundingBox=${face.boundingBox}")
-                Log.i(TAG, "face[${i + 1}] bbox=${face.boundingBox}")
-            }
-
-            if (BuildConfig.DEBUG && detected.isNotEmpty()) {
-                val overlayFile = File(
-                    debugDir,
-                    "start_${photoFile.nameWithoutExtension}_${System.currentTimeMillis()}.jpg",
-                )
-                val overlayOk = FaceDebugOverlay.saveAnnotatedCopy(
-                    bmp,
-                    detected,
-                    margin,
-                    overlayFile,
-                )
-                pipelineLog("debugOverlaySaved=$overlayOk file=${overlayFile.absolutePath}")
-            }
 
             if (detected.isEmpty()) {
                 pipelineLog("STOP: no faces (skip crop/embed/insert)")
-                Log.w(TAG, "ingestStartPhoto no faces")
                 return@runCatching 0
             }
 
-            // Hard floor: unconditional minimum face area — identical to FinishPhotoPipeline.
             val afterHardFloor = detected.filter {
                 it.boundingBox.width() * it.boundingBox.height() >= FinishPhotoPipeline.SMALL_FACE_HARD_FLOOR_PX2
             }
             val hardFloorSkipped = detected.size - afterHardFloor.size
             if (hardFloorSkipped > 0) {
-                val msg = "startPhoto hardFloor skipped=$hardFloorSkipped floor=${FinishPhotoPipeline.SMALL_FACE_HARD_FLOOR_PX2}"
-                pipelineLog(msg); Log.i(TAG, msg)
+                pipelineLog("volunteerPhoto hardFloor skipped=$hardFloorSkipped floor=${FinishPhotoPipeline.SMALL_FACE_HARD_FLOOR_PX2}")
             }
 
-            // Conditional relative + absolute filter — same calibration as finish photos.
-            // In a pre-start crowd photo with one large face (e.g. 199 k px²) and many smaller
-            // faces (30–40 k px²), effectiveCutoff = max(10 000, 199 000/3) = 66 400, so only
-            // faces >= 66 400 px² are kept as participant seeds.  This prevents low-quality, small
-            // faces in crowded start photos from seeding the embedding pool and causing spurious
-            // finish-line matches.
             val maxRawArea = if (afterHardFloor.isEmpty()) 0
                              else afterHardFloor.maxOf { it.boundingBox.width() * it.boundingBox.height() }
             val filterSmall = maxRawArea >= FinishPhotoPipeline.SMALL_FACE_MIN_AREA_PX2
@@ -143,30 +97,25 @@ internal class StartPhotoIngestor(
             }
             val smallSkipped = afterHardFloor.size - facesToProcess.size
             if (smallSkipped > 0) {
-                val msg = "startPhoto smallFaceFilter skipped=$smallSkipped maxArea=$maxRawArea " +
-                    "effectiveCutoff=$effectiveCutoff absMin=${FinishPhotoPipeline.SMALL_FACE_MIN_AREA_PX2} " +
-                    "ratio=${FinishPhotoPipeline.SMALL_FACE_RELATIVE_RATIO}"
-                pipelineLog(msg); Log.i(TAG, msg)
+                pipelineLog("volunteerPhoto smallFaceFilter skipped=$smallSkipped maxArea=$maxRawArea effectiveCutoff=$effectiveCutoff")
             }
 
             if (facesToProcess.isEmpty()) {
-                pipelineLog("STOP: no faces after size filter (skip crop/embed/insert)")
+                pipelineLog("STOP: no faces after size filter")
                 return@runCatching 0
             }
 
-            // Absolute peripheral filter: skip faces at the horizontal frame edge.
-            // See START_PERIPHERAL_HARD_X kdoc for full rationale.
+            // Apply the same horizontal-peripheral filter as start photos.
             val facesToSeed = facesToProcess.filter { face ->
                 val cxNorm = (face.boundingBox.left + face.boundingBox.right) / 2f / bmp.width
-                kotlin.math.abs(cxNorm - 0.5f) <= START_PERIPHERAL_HARD_X
+                kotlin.math.abs(cxNorm - 0.5f) <= StartPhotoIngestor.START_PERIPHERAL_HARD_X
             }
             val peripheralSkipped = facesToProcess.size - facesToSeed.size
             if (peripheralSkipped > 0) {
-                val msg = "startPhoto peripheralFilter skipped=$peripheralSkipped threshold=$START_PERIPHERAL_HARD_X"
-                pipelineLog(msg); Log.i(TAG, msg)
+                pipelineLog("volunteerPhoto peripheralFilter skipped=$peripheralSkipped threshold=${StartPhotoIngestor.START_PERIPHERAL_HARD_X}")
             }
             if (facesToSeed.isEmpty()) {
-                pipelineLog("STOP: no faces after peripheral filter (skip crop/embed/insert)")
+                pipelineLog("STOP: no faces after peripheral filter")
                 return@runCatching 0
             }
 
@@ -178,9 +127,8 @@ internal class StartPhotoIngestor(
                 pipelineLog("face#$faceNum rawBoundingBox=$raw expandedBoundingBox=$expanded marginPerSide=$margin")
 
                 val crop = FaceCropBounds.cropBitmap(bmp, expanded)
-                pipelineLog("face#$faceNum cropSucceeded=${crop != null}")
                 if (crop == null) {
-                    Log.w(TAG, "ingestStartPhoto face#$faceNum crop_failed")
+                    pipelineLog("face#$faceNum cropSucceeded=false skip")
                     return@forEachIndexed
                 }
 
@@ -190,10 +138,9 @@ internal class StartPhotoIngestor(
                     FaceThumbnailSaver.saveJpeg(crop, thumbFile)
                     thumbnailSaved = thumbFile.exists() && thumbFile.length() > 0L
                 } catch (e: Exception) {
-                    Log.e(TAG, "thumbnail save failed face#$faceNum", e)
+                    Log.e(TAG, "volunteer thumb save failed face#$faceNum", e)
                     pipelineLog("face#$faceNum thumbnailSaved=false err=${e.message}")
                 }
-                pipelineLog("face#$faceNum thumbnailSaved=$thumbnailSaved path=${thumbFile.absolutePath}")
 
                 val embedResult = runCatching {
                     withContext(Dispatchers.Default) { embedder.embed(crop) }
@@ -206,30 +153,26 @@ internal class StartPhotoIngestor(
 
                 if (embeddingFailed) {
                     embedResult.exceptionOrNull()?.let { err ->
-                        Log.e(TAG, "embedding failed face#$faceNum", err)
+                        Log.e(TAG, "volunteer embedding failed face#$faceNum", err)
                         pipelineLog("face#$faceNum descriptorCreated=false err=${err.message}")
                     }
                 } else {
-                    pipelineLog("face#$faceNum descriptorCreated=true dim=${vec.size}")
+                    pipelineLog("face#$faceNum descriptorCreated=true dim=${vec!!.size}")
                 }
 
                 if (!embeddingFailed) {
                     val blacklist = races.getEmbeddingMatchBlacklistSnapshot()
                     val existingSets = races.listParticipantEmbeddingSets(raceId).filter { it.hasEmbeddings }
-                    val duplicateOf = matcher.match(vec, embeddingStr, existingSets, blacklist)
+                    val duplicateOf = matcher.match(vec!!, embeddingStr, existingSets, blacklist)
                     if (duplicateOf != null) {
                         if (thumbFile.exists()) thumbFile.delete()
-                        pipelineLog(
-                            "face#$faceNum skip_duplicate_of_participant id=${duplicateOf.id} " +
-                                "(same_face_as_existing_pool)",
-                        )
-                        Log.i(TAG, "ingestStartPhoto face#$faceNum skipped duplicate id=${duplicateOf.id}")
+                        pipelineLog("face#$faceNum skip_duplicate_of_participant id=${duplicateOf.id}")
                         return@forEachIndexed
                     }
                 }
 
                 val globalId: GlobalIdentityResolution? =
-                    if (!embeddingFailed) races.resolveGlobalIdentity(vec) else null
+                    if (!embeddingFailed) races.resolveGlobalIdentity(vec!!) else null
 
                 val rowId = races.insertParticipantHash(
                     RaceParticipantHashEntity(
@@ -243,25 +186,12 @@ internal class StartPhotoIngestor(
                         identityRegistryId = globalId?.registryId,
                         displayName = null,
                         createdAtEpochMillis = createdAt,
+                        isVolunteer = true,
                     ),
                     initialEmbeddingSource = EmbeddingSourceType.START,
                     primaryThumbnailPhotoPath = if (thumbnailSaved) thumbFile.absolutePath else null,
                 )
-                globalId?.let { g ->
-                    pipelineLog(
-                        "face#$faceNum identityRegistry id=${g.registryId} matchedExisting=${g.matchedExisting} " +
-                            "info=${g.registryInfo ?: "—"}",
-                    )
-                }
-                val total = races.countParticipantsForRace(raceId)
-                pipelineLog(
-                    "face#$faceNum participantRowInserted=true id=$rowId embeddingFailed=$embeddingFailed " +
-                        "totalParticipants=$total",
-                )
-                Log.i(
-                    TAG,
-                    "insert id=$rowId embeddingFailed=$embeddingFailed totalParticipants=$total",
-                )
+
                 FaceCropManifestDisk.upsertReplaceParticipantOnSource(
                     appContext,
                     raceId,
@@ -277,14 +207,15 @@ internal class StartPhotoIngestor(
                         cropFilePath = thumbFile.takeIf { it.exists() }?.absolutePath,
                     ),
                 )
+                val total = races.countParticipantsForRace(raceId)
+                pipelineLog("face#$faceNum volunteer_row_inserted=true id=$rowId embeddingFailed=$embeddingFailed totalParticipants=$total")
                 inserted++
             }
 
-            pipelineLog("ingestStartPhoto done insertedRows=$inserted")
+            pipelineLog("ingestVolunteerPhoto done insertedRows=$inserted")
             inserted
         } finally {
             races.updateLastProcessedPhoto(raceId, photoFile.absolutePath)
-            races.applyOfflineRaceStartFromStartPhotos(raceId)
             bmp.recycle()
         }
     }

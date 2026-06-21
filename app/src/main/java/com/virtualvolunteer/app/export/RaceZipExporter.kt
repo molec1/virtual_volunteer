@@ -10,7 +10,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * Creates a simple ZIP export with race.xml, protocol.xml, and both photo folders.
+ * Creates ZIP exports of a race folder.
  */
 object RaceZipExporter {
 
@@ -26,6 +26,26 @@ object RaceZipExporter {
             addDirectory(zos, RacePaths.startPhotosDir(context, raceId), "start_photos")
             addDirectory(zos, RacePaths.finishPhotosDir(context, raceId), "finish_photos")
             addDirectory(zos, RacePaths.facesDir(context, raceId), "faces")
+        }
+        zip
+    }
+
+    /**
+     * Lightweight debug bundle: everything except the heavy start/finish full-frame photos.
+     * Includes race.xml, protocol.xml, face_crop_manifest.xml, protocol_test_debug.log,
+     * face crops (faces/) and debug overlays (debug/).
+     */
+    fun exportDebugBundle(context: Context, raceId: String): Result<File> = runCatching {
+        val exportDir = RacePaths.exportDir(context, raceId)
+        exportDir.mkdirs()
+        val zip = File(exportDir, "race_${raceId.take(8)}_debug_${System.currentTimeMillis()}.zip")
+        ZipOutputStream(FileOutputStream(zip)).use { zos ->
+            addFile(zos, RacePaths.raceXml(context, raceId), "race.xml")
+            addFile(zos, RacePaths.protocolXml(context, raceId), "protocol.xml")
+            addFile(zos, RacePaths.faceCropManifestFile(context, raceId), "face_crop_manifest.xml")
+            addFile(zos, RacePaths.testProtocolDebugLog(context, raceId), "protocol_test_debug.log")
+            addDirectory(zos, RacePaths.facesDir(context, raceId), "faces")
+            addDirectory(zos, RacePaths.debugDir(context, raceId), "debug")
         }
         zip
     }

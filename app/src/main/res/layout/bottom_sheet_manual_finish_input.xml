@@ -17,28 +17,6 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/section_spacing_medium"
-        android:text="@string/manual_finish_participant_label"
-        android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel" />
-
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/participantIdLayout"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/participantIdInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/manual_finish_participant_hint"
-            android:inputType="number" />
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/section_spacing_large"
         android:text="@string/manual_finish_time_label"
         android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel" />

@@ -5,8 +5,8 @@
     android:layout_height="match_parent"
     android:background="@android:color/black">
 
-    <com.github.chrisbanes.photoview.PhotoView
-        android:id="@+id/photoView"
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/photoPager"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
@@ -28,6 +28,15 @@
             android:contentDescription="@string/race_event_photo_viewer_close_cd"
             android:src="@android:drawable/ic_menu_close_clear_cancel"
             app:tint="@color/white" />
+
+        <TextView
+            android:id="@+id/photoCounter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:visibility="gone" />
 
         <View
             android:layout_width="0dp"

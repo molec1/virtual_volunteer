@@ -13,7 +13,7 @@ Offline-first Android app for **race timing using photos**: capture **start-line
 | Concept | Persistence | Role |
 |--------|-------------|------|
 | **Race** | `RaceEntity` | One event: ids, timestamps (created / started / finished), status, folders, last processed photo path, optional **list** menu preview path (`listThumbnailPath` → `race_list_thumb.jpg` next to `race.xml`). |
-| **Participant** | `RaceParticipantHashEntity` | **One protocol person** per row: thumbnails, scan/name, identity-registry link, **`protocolFinishTimeEpochMillis`** / **`firstFinishSeenAtEpochMillis`**. Legacy columns **`embedding`** / **`embeddingFailed`** remain as a **synced mirror** of the primary stored vector (first row in `participant_embeddings`) for compatibility; the source of truth for face vectors is **`participant_embeddings`**. |
+| **Participant** | `RaceParticipantHashEntity` | **One protocol person** per row: thumbnails, scan/name, identity-registry link, **`protocolFinishTimeEpochMillis`** / **`firstFinishSeenAtEpochMillis`**, **`isVolunteer`** flag. Legacy columns **`embedding`** / **`embeddingFailed`** remain as a **synced mirror** of the primary stored vector (first row in `participant_embeddings`) for compatibility; the source of truth for face vectors is **`participant_embeddings`**. |
 | **Participant embedding** | `ParticipantEmbeddingEntity` | **Many rows per participant**: comma-separated vector, **`EmbeddingSourceType`** (`START`, `FINISH_AUTO`, `FINISH_MANUAL_LINK`), optional **`sourcePhotoPath`**, **`qualityScore`**, timestamps. Matching uses **all** vectors for that participant (best cosine wins per participant). |
 | **FinishDetection** | `FinishDetectionEntity` | One row per **matched** finish-face event: participant, race, **detectedAt**, source photo path, optional cosine score. Many rows per participant are allowed. |
 
@@ -37,12 +37,13 @@ Offline-first Android app for **race timing using photos**: capture **start-line
 
 1. Layout folders; decode image with **EXIF upright** orientation (`OrientedPhotoBitmap`: full-resolution ARGB decode into a transient `Bitmap` for detection/crops; JPEG originals on disk stay at capture resolution). **Debug** builds may write annotated detector overlays under `debug/`; release skips that extra full-frame copy.
 2. **Detection** — ML Kit faces on the bitmap (separate from embedding quality).
-3. Per face: expand/crop region, optional **mild luminance normalization** (mean luma; gamma only for very dark/bright crops, no histogram equalization) immediately before TFLite resize/input, save **JPEG thumbnail**, run **TFLite embedder**. Debug builds may persist corrected crops under the app cache **`face_crop_normalized_debug`** when normalization actually changes pixels. After each inserted protocol row, **`face_crop_manifest.xml`** in the race folder is updated with the **source full-frame path**, **upright vision width/height**, **expanded crop rect** in that pixel space, optional **`faces/` JPEG path**, and **participant hash id** so the protocol photo viewer can draw the exact box without re-inference.
-4. **Participant row** inserted even when embedding fails (`embeddingFailed`, empty embedding string) so the person stays visible/debuggable.
-5. **Duplicate skip** (multi-embedding): cosine match against **`listParticipantEmbeddingSets`** — skip insert if any existing participant’s **best** similarity to the new vector is ≥ threshold (same pool rule as finish matching).
-6. On successful embedding, **`insertParticipantHash`** also inserts the first **`ParticipantEmbeddingEntity`** with **`START`**.
-7. Optional **global identity registry** resolution after embedding succeeds.
-8. Update race **last processed photo** path.
+3. **Start-photo face size filter** (same calibration as finish photos): unconditional hard floor `SMALL_FACE_HARD_FLOOR_PX2 = 3 000 px²`; conditional relative + absolute filter active when the largest detected face ≥ `SMALL_FACE_MIN_AREA_PX2 = 10 000 px²`, with effective per-photo cutoff = `max(10 000, maxFaceArea / 3)`. Rationale: crowded pre-start photos (e.g., 15 detected faces, max 199 k px²) generate many small-face embeddings that are too low quality to match reliably and cause spurious finish-line identifications. **Peripheral hard filter**: after size filtering, faces whose normalised horizontal centre is more than `START_PERIPHERAL_HARD_X = 0.20` from the image midpoint are discarded unconditionally; at typical 4 K camera width this equals ≈ 410 px from each edge. Prevents profile/back-of-head bystanders captured at frame edges from seeding the participant pool and attracting spurious finish-line matches.
+4. Per face: expand/crop region, optional **mild luminance normalization** (mean luma; gamma only for very dark/bright crops, no histogram equalization) immediately before TFLite resize/input, save **JPEG thumbnail**, run **TFLite embedder**. Debug builds may persist corrected crops under the app cache **`face_crop_normalized_debug`** when normalization actually changes pixels. After each inserted protocol row, **`face_crop_manifest.xml`** in the race folder is updated with the **source full-frame path**, **upright vision width/height**, **expanded crop rect** in that pixel space, optional **`faces/` JPEG path**, and **participant hash id** so the protocol photo viewer can draw the exact box without re-inference.
+5. **Participant row** inserted even when embedding fails (`embeddingFailed`, empty embedding string) so the person stays visible/debuggable.
+6. **Duplicate skip** (multi-embedding): cosine match against **`listParticipantEmbeddingSets`** — skip insert if any existing participant’s **best** similarity to the new vector is ≥ threshold (same pool rule as finish matching).
+7. On successful embedding, **`insertParticipantHash`** also inserts the first **`ParticipantEmbeddingEntity`** with **`START`**.
+8. Optional **global identity registry** resolution after embedding succeeds.
+9. Update race **last processed photo** path.
 
 **Invariant:** detection (boxes) ≠ embedding/hash; hashing failure must not skip creating the participant row.
 
@@ -53,11 +54,16 @@ Offline-first Android app for **race timing using photos**: capture **start-line
 **In-app CameraX finish capture** writes the JPEG to `finish_photos` first, then enqueues **`FinishPhotoAnalysisQueue`** on **`VirtualVolunteerApp`** so the shutter/UI unblock immediately; detection and embedding run **serially** on an application **`CoroutineScope`** while the process stays alive (screen lock / brief background typically OK; process death leaves files on disk for manual reprocess). Gallery import and disk replay still call **`RacePhotoProcessor.ingestFinishPhoto`** directly.
 
 1. Same decode + detect faces on oriented bitmap; finish processing does **not** persist full-frame annotated debug overlays for every photo.
-2. Per face: crop → embed → first try the short burst fallback against the immediately previous processed finish photo for the same race. When it was captured within **<1s**, the face box is in roughly the same normalized image area, and cosine between the two freshly observed embeddings is **≥0.4**, the current face reuses the previous photo’s participant without loading the full embedding pool. If that fallback does not match, **match** against **`ParticipantEmbeddingSet`** list for **eligible pool** for **this photo only** (`availableThisPhoto`): cosine ≥ threshold using **best-over-embeddings** per participant; nearest-neighbour among participants not yet matched on **this** image (avoids double-assigning two faces to one identity in one frame). Each recorded finish face updates **`face_crop_manifest.xml`** the same way as start (source path, vision size, expanded rect, optional crop file, matched participant id).
-3. **Cross-photo:** the same participant **can** match again on later finish photos (no global “already finished” exclusion).
-4. Unmatched face above pool threshold but no slot left uses **create participant from finish** path (thumbnail + embedding + registry); first embedding row is **`FINISH_AUTO`**.
-5. **Record finish detection** (`recordFinishDetection`) with cosine = **best** similarity vs the matched participant’s embedding set (or **1f** for a newly created finish-only participant’s first vector).
-6. If the face **auto-matched** an **existing** participant, **append** the finish embedding (**`FINISH_AUTO`**) when not an exact duplicate string — **after** recording the detection.
+2. Per face: two pre-embedding filters run before the crop/embed step.
+   - **Edge-of-frame filter (two parts)**:
+     - *Part A — Profile-peripheral*: if `width/height < 0.65` (side-view face) and `|cx − 0.5| > 0.19`, the face is skipped when it is alone in the frame **or** any other face in the same photo is strictly more central (by > 5 % of normalised width). Area comparison removed — the narrow aspect ratio is already a strong discriminator.
+     - *Part B — Frontal-edge*: if `width/height ≥ 0.65` (frontal face) and `|cx − 0.5| > 0.20` and raw area ≥ 15 000 px², the face is skipped when any other face in the same photo is strictly more central. The area floor protects small, distant approaching runners (area typically < 15 k px²) from being discarded; nearby bystanders standing at the edge are larger and exceed the floor. Calibrated on race cc7a5378.
+   - Size filters (hard floor 3 000 px², conditional absolute 10 000 px² and relative ÷3) as in start pipeline.
+3. Embed → first try short burst fallback against the immediately previous processed finish photo. When it was captured within **≤3s** (series window), the face box is in roughly the same normalised image area (centre delta ≤ 12 %, width/height ratio ≤ 3×), and cosine between the two freshly observed embeddings exceeds the **series threshold** (0.30 normally; **0.20** for frames ≤ 2 000 ms apart, where rapid approach shrinks cosine similarity even for the same person), the current face reuses the previous photo’s participant without loading the full embedding pool. If that fallback does not match, **match** against **`ParticipantEmbeddingSet`** list for **eligible pool** for **this photo only** (`availableThisPhoto`): cosine ≥ threshold using **best-over-embeddings** per participant; nearest-neighbour among participants not yet matched on **this** image (avoids double-assigning two faces to one identity in one frame). Each recorded finish face updates **`face_crop_manifest.xml`** the same way as start (source path, vision size, expanded rect, optional crop file, matched participant id).
+4. **Cross-photo:** the same participant **can** match again on later finish photos (no global “already finished” exclusion).
+5. Unmatched face above pool threshold but no slot left uses **create participant from finish** path (thumbnail + embedding + registry); first embedding row is **`FINISH_AUTO`**.
+6. **Record finish detection** (`recordFinishDetection`) with cosine = **best** similarity vs the matched participant’s embedding set (or **1f** for a newly created finish-only participant’s first vector).
+7. If the face **auto-matched** an **existing** participant, **append** the finish embedding (**`FINISH_AUTO`**) when not an exact duplicate string — **after** recording the detection. **Append guard**: series matches always append; standard pool matches append only when cosine ≥ **0.50** to prevent the “magnet” drift where repeated low-quality matches diversify an embedding set and attract increasingly unrelated faces.
 
 Pipeline logs include **candidate photo path**, **nearest participant / best score**, **matched participant id**, **`embeddingAppended`**, and detection-record outcome.
 
@@ -78,6 +84,24 @@ Detections **after** \(t_0 + 30\text{s}\) remain stored (debug/audit) but **do n
 **Invariant:** **one participant ⇒ one official finish time** in protocol/UI/CSV — the aggregated fields on `RaceParticipantHashEntity`; multiple `FinishDetection` rows are expected.
 
 Protocol XML and ordering use **official** finish time ascending. Protocol XML still emits one **embedding** string per finisher: the **first** row in **`participant_embeddings`** for that participant (fallback: legacy column).
+
+---
+
+## Volunteer pipeline
+
+Pressing **"Take volunteer photo"** navigates to `CameraCaptureFragment` with `MODE_VOLUNTEER_PHOTO`. The captured JPEG is saved to **`volunteer_photos/`** under the race folder and processed by **`VolunteerPhotoIngestor`**:
+
+1. Same face detection + size filters + horizontal peripheral filter as start photos.
+2. Duplicate skip against the existing participant pool (same threshold).
+3. Inserts a `RaceParticipantHashEntity` row with **`isVolunteer = true`** and embedding source **`START`**.
+4. No race-start-time side-effect (volunteers can be photographed at any point).
+
+**Finish photo pipeline behaviour for volunteers**: when a face in a finish photo matches a participant with `isVolunteer = true`, the pipeline:
+- Adds the participant to `participantIdsUsedThisPhoto` (preventing a new false participant row).
+- Optionally appends the fresh embedding (same cosine guard as normal pool matches).
+- **Skips `recordFinishDetectionForParticipant`** — no finish time is ever set for a volunteer.
+
+The volunteer is shown in the dashboard with a "Volunteer" label instead of a finish time and is excluded from finish ranking. Volunteers sort after unfinished participants in the protocol list.
 
 ---
 
@@ -141,6 +165,7 @@ The **race detail** “all event photos” grid lists files under **`start_photo
 
 ## Offline testing behavior
 
+- **Local filter simulation** — **`scripts/simulate_protocol.py`** reads a debug bundle (`face_crop_manifest.xml` + `protocol.xml` + `race.xml`) and replays all filter rules (hard floor, relative size, profile-peripheral, start-photo peripheral) against the stored bounding boxes without rebuilding the app. Reports per-row filter outcome, start-seed keep/skip decisions, and geometric series-merge feasibility for annotated duplicate pairs. Usage: `python3 scripts/simulate_protocol.py /path/to/bundle [--notes notes.txt]`. Constant values at the top of the script must be kept in sync with `FinishPhotoPipeline.kt` / `StartPhotoIngestor.kt`.
 - **Import start/finish folders** — Same processors as camera; timestamps from **`PhotoTimestampResolver`** (EXIF-first).
 - **Build test protocol** — Walks finish folder, runs finish pipeline per file, appends trace to **`protocol_test_debug.log`** under the race directory.
 - **Reprocess race from disk** — Race detail offline section: snapshots embeddings plus scan/registry/display metadata per row, deletes all **`race_participant_hashes`** for the race (cascades **`participant_embeddings`** and **`finish_detections`**), clears **`faces/`** and **`debug/`** under the race folder (original **`start_photos`** / **`finish_photos`** JPEGs unchanged), then replays **`ingestStartPhoto`** on every start file and the finish pipeline on every finish file (oldest first by resolved photo time). Reattaches saved metadata to new rows when best cosine vs that row’s embedding set is ≥ **`FaceMatchEngine.DEFAULT_MIN_COSINE`** (greedy one-to-one). Refreshes **`protocol.xml`**, list thumbnail, and scan merges. Implemented as **`RaceRepository.executeFullDiskPhotoReprocess`** + **`RacePhotoProcessor.reprocessRaceFromStoredEventPhotos`**.

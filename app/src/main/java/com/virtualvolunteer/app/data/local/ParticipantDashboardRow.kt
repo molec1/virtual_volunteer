@@ -19,4 +19,5 @@ data class ParticipantDashboardRow(
     val displayName: String?,
     /** 1 = earliest finish in this race; null if no finish yet. */
     val finishRank: Int?,
+    val isVolunteer: Boolean,
 )

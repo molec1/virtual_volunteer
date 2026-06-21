@@ -6,7 +6,7 @@ import com.virtualvolunteer.app.data.local.ParticipantDashboardRow
 internal object RaceDashboardFinishRanks {
     fun assignFinishRanks(rows: List<ParticipantDashboardDbRow>): List<ParticipantDashboardRow> {
         val orderedFinishers = rows
-            .filter { it.finishTimeEpochMillis != null }
+            .filter { it.finishTimeEpochMillis != null && !it.isVolunteer }
             .sortedWith(compareBy({ it.finishTimeEpochMillis }, { it.participantId }))
         val rankById = orderedFinishers.mapIndexed { idx, r ->
             r.participantId to (idx + 1)
@@ -26,6 +26,7 @@ internal object RaceDashboardFinishRanks {
                 displayName = db.displayName,
                 primaryThumbnailPhotoPath = db.primaryThumbnailPhotoPath,
                 finishRank = rankById[db.participantId],
+                isVolunteer = db.isVolunteer,
             )
         }
     }

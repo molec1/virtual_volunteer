@@ -40,9 +40,12 @@ class RaceParticipantPhotosBottomSheet : BottomSheetDialogFragment() {
         val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
 
         photoAdapter = ParticipantRacePhotoAdapter(viewLifecycleOwner.lifecycleScope) { photo ->
+            val allPaths = photoAdapter.currentList.map { it.absolutePath }
+            val idx = allPaths.indexOf(photo.absolutePath).coerceAtLeast(0)
             ParticipantProtocolPhotoViewerDialogFragment.show(
                 requireActivity().supportFragmentManager,
-                photo.absolutePath,
+                allPaths,
+                idx,
                 participantId,
                 raceId,
             )

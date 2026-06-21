@@ -42,4 +42,10 @@ data class RaceParticipantHashEntity(
     val protocolFinishTimeEpochMillis: Long? = null,
     val primaryThumbnailPhotoPath: String? = null,
     val createdAtEpochMillis: Long,
+    /**
+     * True when this participant was registered as a volunteer (via "Take volunteer photo").
+     * Volunteers are stored in the matching pool so their faces are recognised in finish photos
+     * and don't generate spurious finish detections or new participant rows.
+     */
+    val isVolunteer: Boolean = false,
 )

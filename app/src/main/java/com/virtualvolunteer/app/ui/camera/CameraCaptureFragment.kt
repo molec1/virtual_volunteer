@@ -17,7 +17,6 @@ import android.view.ViewTreeObserver
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
@@ -58,6 +57,12 @@ class CameraCaptureFragment : Fragment() {
     private var imageCapture: ImageCapture? = null
     private var lastAppliedGuideHeightPx: Int? = null
     private var previewLayoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null
+
+    // Retained across rebinds; cleared in onDestroyView.
+    private var cameraProvider: ProcessCameraProvider? = null
+    private var boundCamera: androidx.camera.core.Camera? = null
+    private var cameraOptions: List<RearCameraOption> = emptyList()
+    private var selectedCameraIndex: Int = 0
 
     /**
      * Physical device rotation (from [OrientationEventListener]) for JPEG EXIF via CameraX
@@ -115,7 +120,6 @@ class CameraCaptureFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         cameraExecutor = Executors.newSingleThreadExecutor()
 
-        // Ensure both system Back and toolbar Up close the camera and return to race screen.
         requireActivity().onBackPressedDispatcher.addCallback(
             viewLifecycleOwner,
             object : OnBackPressedCallback(true) {
@@ -127,6 +131,7 @@ class CameraCaptureFragment : Fragment() {
 
         binding.cameraHint.text = when (captureMode) {
             MODE_FINISH_PHOTO -> getString(R.string.camera_capture_finish_hint)
+            MODE_VOLUNTEER_PHOTO -> getString(R.string.camera_capture_volunteer_hint)
             else -> getString(R.string.camera_capture_start_hint)
         }
         binding.cameraStatus.text = getString(R.string.camera_capture_status_ready)
@@ -154,6 +159,10 @@ class CameraCaptureFragment : Fragment() {
                 }
             }
             true
+        }
+
+        binding.btnLensSelect.setOnClickListener {
+            switchToNextCamera()
         }
 
         orientationListener = object : OrientationEventListener(
@@ -184,7 +193,6 @@ class CameraCaptureFragment : Fragment() {
             permissionLauncher.launch(Manifest.permission.CAMERA)
         }
 
-        // Recompute overlay size after layout (incl. rotation / insets changes).
         previewLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
             updateHeadSizeGuide()
         }.also {
@@ -194,7 +202,6 @@ class CameraCaptureFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        // Prevent UI from rotating into landscape while shooting photos.
         val host = requireActivity()
         if (previousRequestedOrientation == null) {
             previousRequestedOrientation = host.requestedOrientation
@@ -213,37 +220,155 @@ class CameraCaptureFragment : Fragment() {
         super.onPause()
     }
 
+    /**
+     * Acquires [ProcessCameraProvider], enumerates rear cameras on first call (populating
+     * [cameraOptions] and [selectedCameraIndex]), then delegates to [bindCamera].
+     */
     private fun startCamera() {
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
-        cameraProviderFuture.addListener(
+        val future = ProcessCameraProvider.getInstance(requireContext())
+        future.addListener(
             {
-                val b = _binding ?: return@addListener
-                val cameraProvider = cameraProviderFuture.get()
-                val preview = Preview.Builder().build()
-                preview.setSurfaceProvider(b.cameraPreview.surfaceProvider)
-                imageCapture = ImageCapture.Builder()
-                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                    .setTargetRotation(captureTargetRotation)
-                    .build()
-
-                val selector = CameraSelector.DEFAULT_BACK_CAMERA
-                try {
-                    cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(
-                        viewLifecycleOwner,
-                        selector,
-                        preview,
-                        imageCapture,
+                val provider = future.get()
+                cameraProvider = provider
+                if (cameraOptions.isEmpty()) {
+                    val app = requireActivity().application as VirtualVolunteerApp
+                    cameraOptions = RearCameraSelector.buildOptions(
+                        context = requireContext(),
+                        cameraProvider = provider,
+                        pipelineLog = { app.appendPipelineLog(it) },
                     )
-                    // Now that use cases are bound, we can usually read the final output resolution.
-                    updateHeadSizeGuide()
-                } catch (e: Exception) {
-                    Log.e(TAG, "bind failed", e)
-                    Toast.makeText(requireContext(), R.string.import_failed, Toast.LENGTH_SHORT).show()
+                    selectedCameraIndex = RearCameraSelector.defaultIndex(cameraOptions)
+                    updateLensButton()
                 }
+                bindCamera(provider)
             },
             ContextCompat.getMainExecutor(requireContext()),
         )
+    }
+
+    /**
+     * Binds Preview + ImageCapture to [provider] using the currently selected [RearCameraOption].
+     *
+     * When the selected option's selector fails to bind (e.g. the camera is not accessible on this
+     * device through CameraX), it is silently dropped from [cameraOptions] and the next available
+     * real option is tried. If all real options are exhausted the system default back camera is
+     * used as the final fallback.
+     */
+    private fun bindCamera(provider: ProcessCameraProvider) {
+        val b = _binding ?: return
+        val preview = Preview.Builder().build()
+        preview.setSurfaceProvider(b.cameraPreview.surfaceProvider)
+        imageCapture = ImageCapture.Builder()
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            .setTargetRotation(captureTargetRotation)
+            .build()
+        val ic = imageCapture!!
+
+        // Build an ordered list of selectors to try: selected option first, then the rest, then
+        // DEFAULT_BACK_CAMERA as a guaranteed last resort.
+        val orderedOptions = buildList {
+            cameraOptions.getOrNull(selectedCameraIndex)?.let { add(it) }
+            cameraOptions.forEachIndexed { i, opt ->
+                if (i != selectedCameraIndex && opt.zoomRatio == null) add(opt)
+            }
+        }
+        val failedIds = mutableListOf<String>()
+
+        for (option in orderedOptions) {
+            try {
+                provider.unbindAll()
+                val cam = provider.bindToLifecycle(viewLifecycleOwner, option.selector, preview, ic)
+                boundCamera = cam
+                updateHeadSizeGuide()
+                setupZoomOptionsIfNeeded(cam)
+                return
+            } catch (e: Exception) {
+                Log.w(TAG, "bind failed for ${option.label}: ${e.message}")
+                failedIds += option.label
+            }
+        }
+
+        // All enumerated options failed — remove them from the list, fall back to DEFAULT.
+        if (failedIds.isNotEmpty()) {
+            Log.w(TAG, "dropping unbindable options: $failedIds")
+            cameraOptions = cameraOptions.filter { it.label !in failedIds }
+            selectedCameraIndex = 0
+            updateLensButton()
+        }
+
+        try {
+            provider.unbindAll()
+            val cam = provider.bindToLifecycle(
+                viewLifecycleOwner,
+                androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA,
+                preview,
+                ic,
+            )
+            boundCamera = cam
+            updateHeadSizeGuide()
+            setupZoomOptionsIfNeeded(cam)
+        } catch (e: Exception) {
+            Log.e(TAG, "DEFAULT_BACK_CAMERA bind also failed", e)
+            Toast.makeText(requireContext(), R.string.import_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * Cycles [selectedCameraIndex] to the next option.
+     *
+     * For **synthetic** zoom options the camera stays bound; only the zoom ratio changes.
+     * For **real** selector options the camera is fully rebound.
+     */
+    private fun switchToNextCamera() {
+        if (cameraOptions.size <= 1) return
+        selectedCameraIndex = (selectedCameraIndex + 1) % cameraOptions.size
+        updateLensButton()
+        val option = cameraOptions[selectedCameraIndex]
+        if (option.zoomRatio != null) {
+            boundCamera?.cameraControl?.setZoomRatio(option.zoomRatio)
+        } else {
+            val provider = cameraProvider ?: return
+            bindCamera(provider)
+        }
+    }
+
+    /**
+     * When Camera2 enumeration found only one rear camera, observes the zoom-state LiveData once
+     * to discover the device's max zoom ratio and, if it is ≥ 2×, replaces [cameraOptions] with
+     * synthetic zoom options (1×/2×/5×) backed by the already-bound selector.
+     *
+     * No-op when multiple real options already exist.
+     */
+    private fun setupZoomOptionsIfNeeded(camera: androidx.camera.core.Camera) {
+        if (cameraOptions.size >= 2) return
+        camera.cameraInfo.zoomState.observe(viewLifecycleOwner) { zoomState ->
+            if (cameraOptions.size >= 2) return@observe
+            val maxZoom = zoomState?.maxZoomRatio ?: return@observe
+            val synthetic = RearCameraSelector.buildZoomOptions(cameraOptions, maxZoom)
+            if (synthetic.size < 2) return@observe
+            cameraOptions = synthetic
+            selectedCameraIndex = 0
+            camera.cameraControl.setZoomRatio(1.0f)
+            updateLensButton()
+        }
+    }
+
+    /**
+     * Shows the lens selector button when at least two options are available (real or synthetic),
+     * and updates its label to match the currently selected option.
+     */
+    private fun updateLensButton() {
+        val b = _binding ?: return
+        val options = cameraOptions
+        val hasMultiple = options.size >= 2 && options.any { it.equivMm > 0 || it.zoomRatio != null }
+        if (!hasMultiple) {
+            b.btnLensSelect.visibility = View.GONE
+            return
+        }
+        b.btnLensSelect.visibility = View.VISIBLE
+        b.btnLensSelect.text = options.getOrNull(selectedCameraIndex)?.label ?: "—"
+        b.btnLensSelect.contentDescription =
+            getString(R.string.camera_lens_select_cd, b.btnLensSelect.text)
     }
 
     private fun cancelDeferredContinuousChain() {
@@ -275,6 +400,7 @@ class CameraCaptureFragment : Fragment() {
         }
         val file = when (captureMode) {
             MODE_FINISH_PHOTO -> RacePhotoProcessor.defaultOutputFinishPhotoFile(requireContext(), raceId)
+            MODE_VOLUNTEER_PHOTO -> RacePhotoProcessor.defaultOutputVolunteerPhotoFile(requireContext(), raceId)
             else -> RacePhotoProcessor.defaultOutputStartPhotoFile(requireContext(), raceId)
         }
         val appForIngest = requireActivity().application as VirtualVolunteerApp
@@ -301,6 +427,15 @@ class CameraCaptureFragment : Fragment() {
                                         appForIngest.appendPipelineLog("—— CameraX finish (${file.name}) ——")
                                         appForIngest.finishPhotoAnalysisQueue.enqueue(raceId, file)
                                         appForIngest.appendPipelineLog("CameraX finish saved; analysis queued")
+                                    }
+                                    MODE_VOLUNTEER_PHOTO -> {
+                                        _binding?.cameraStatus?.text =
+                                            getString(R.string.camera_capture_status_processing)
+                                        withContext(Dispatchers.IO) {
+                                            photoProcessor.ingestVolunteerPhoto(raceId, file).onFailure { t ->
+                                                Log.w(TAG, "ingestVolunteerPhoto failed", t)
+                                            }
+                                        }
                                     }
                                     else -> {
                                         _binding?.cameraStatus?.text =
@@ -356,7 +491,6 @@ class CameraCaptureFragment : Fragment() {
         if (previewHeightPx <= 0) return
 
         val outputSize = capture.resolutionInfo?.resolution ?: run {
-            // Resolution not known yet; keep it hidden until we can compute a meaningful size.
             b.headSizeGuide.visibility = View.GONE
             return
         }
@@ -376,13 +510,11 @@ class CameraCaptureFragment : Fragment() {
         val coef = previewHeightPx.toFloat() / photoHeightPx.toFloat()
         var guideHeightPx = (MIN_FACE_HEIGHT_IN_OUTPUT_PX * coef).roundToInt()
 
-        // Practical clamp so it doesn't disappear or dominate on odd device/aspect combos.
         val minPx = (16f * resources.displayMetrics.density).roundToInt()
         val maxPx = (previewHeightPx * 0.35f).roundToInt()
         guideHeightPx = guideHeightPx.coerceIn(minPx, maxPx)
 
         if (lastAppliedGuideHeightPx == guideHeightPx) {
-            // Still ensure visibility is correct.
             if (b.headSizeGuide.visibility != View.VISIBLE) b.headSizeGuide.visibility = View.VISIBLE
             return
         }
@@ -411,6 +543,9 @@ class CameraCaptureFragment : Fragment() {
         cameraExecutor?.shutdown()
         cameraExecutor = null
         imageCapture = null
+        boundCamera = null
+        cameraProvider = null
+        cameraOptions = emptyList()
         lastAppliedGuideHeightPx = null
         previousRequestedOrientation = null
         _binding = null
@@ -422,6 +557,7 @@ class CameraCaptureFragment : Fragment() {
         const val ARG_CAPTURE_MODE = "captureMode"
         const val MODE_START_PHOTO = "START_PHOTO"
         const val MODE_FINISH_PHOTO = "FINISH_PHOTO"
+        const val MODE_VOLUNTEER_PHOTO = "VOLUNTEER_PHOTO"
         private const val TAG = "CameraCapture"
         /** Shorter taps must not chain; finish saves often complete before ACTION_UP. */
         private const val HOLD_MS_BEFORE_CONTINUOUS_CHAIN = 400L

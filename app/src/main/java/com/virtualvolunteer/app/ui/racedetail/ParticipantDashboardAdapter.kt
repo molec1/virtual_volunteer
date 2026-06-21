@@ -1,5 +1,7 @@
 package com.virtualvolunteer.app.ui.racedetail
 
+import android.content.res.ColorStateList
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -7,6 +9,7 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.card.MaterialCardView
 import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.data.local.ParticipantDashboardRow
 import com.virtualvolunteer.app.databinding.ParticipantDashboardRowBinding
@@ -14,8 +17,18 @@ import com.virtualvolunteer.app.ui.util.PreviewImageLoader
 import com.virtualvolunteer.app.ui.util.RaceUiFormatter
 import java.io.File
 
+/** Short human-readable label for a participant row: name, scan code, or fallback ID. */
+internal fun ParticipantDashboardRow.displayLabel(): String =
+    displayName?.trim()?.takeIf { it.isNotEmpty() }
+        ?: scannedPayload?.trim()?.takeIf { it.isNotEmpty() }
+        ?: "#$participantId"
+
 /**
  * Participant / protocol rows for the race dashboard (race-local pool + finish join).
+ *
+ * Supports long-press drag-to-merge: the dragged row is dimmed and the current drop target
+ * receives a coloured stroke. Visual state is updated via [setDragPositions]; actual merge
+ * is triggered by [onMergeRequest] once the drag ends over a different row.
  */
 class ParticipantDashboardAdapter(
     private val onScanCode: (participantId: Long) -> Unit,
@@ -25,6 +38,33 @@ class ParticipantDashboardAdapter(
     private val onFaceLookup: (participantId: Long) -> Unit,
 ) : ListAdapter<ParticipantDashboardRow, ParticipantDashboardAdapter.VH>(DIFF) {
 
+    /** Position of the row currently being dragged (-1 when idle). */
+    var dragSourcePosition: Int = -1
+        private set
+
+    /** Position of the current drop target row (-1 when none). */
+    var dropTargetPosition: Int = -1
+        private set
+
+    /** Public accessor for protected [getItem] — used by [ParticipantMergeDragCallback]. */
+    fun getItemAt(position: Int): ParticipantDashboardRow? =
+        if (position in 0 until itemCount) getItem(position) else null
+
+    /**
+     * Updates drag/drop highlight positions and notifies only the affected rows so thumbnails
+     * are not reloaded.
+     */
+    fun setDragPositions(sourcePos: Int, targetPos: Int) {
+        val oldSource = dragSourcePosition
+        val oldTarget = dropTargetPosition
+        dragSourcePosition = sourcePos
+        dropTargetPosition = targetPos
+        // Notify only changed positions to avoid full rebind (avoids thumbnail flicker).
+        setOf(oldSource, oldTarget, sourcePos, targetPos)
+            .filter { it >= 0 && it < itemCount }
+            .forEach { notifyItemChanged(it, PAYLOAD_DRAG_STATE) }
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val inflater = LayoutInflater.from(parent.context)
         val binding = ParticipantDashboardRowBinding.inflate(inflater, parent, false)
@@ -33,6 +73,22 @@ class ParticipantDashboardAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         holder.bind(getItem(position))
+        holder.applyDragState(
+            isDragSource = position == dragSourcePosition,
+            isDropTarget = position == dropTargetPosition,
+        )
+    }
+
+    override fun onBindViewHolder(holder: VH, position: Int, payloads: List<Any>) {
+        if (payloads.contains(PAYLOAD_DRAG_STATE)) {
+            // Only update visual drag state — no data rebind, so thumbnails don't flicker.
+            holder.applyDragState(
+                isDragSource = position == dragSourcePosition,
+                isDropTarget = position == dropTargetPosition,
+            )
+        } else {
+            super.onBindViewHolder(holder, position, payloads)
+        }
     }
 
     class VH(
@@ -64,7 +120,7 @@ class ParticipantDashboardAdapter(
                 binding.participantThumb.setBackgroundResource(R.drawable.bg_placeholder_photo)
             }
 
-            val rank = row.finishRank
+            val rank = if (row.isVolunteer) null else row.finishRank
             if (rank != null) {
                 binding.participantRank.visibility = View.VISIBLE
                 binding.participantRank.text =
@@ -88,23 +144,29 @@ class ParticipantDashboardAdapter(
 
             val startMs = row.raceStartedAtEpochMillis
             val finishMs = row.finishTimeEpochMillis
-            binding.participantMovingTime.visibility = View.VISIBLE
             val ctx = binding.root.context
-            if (startMs != null && finishMs != null) {
-                val delta = (finishMs - startMs).coerceAtLeast(0L)
-                binding.participantMovingTime.text = RaceUiFormatter.formatElapsed(delta)
-                binding.participantMovingTime.setTextColor(ContextCompat.getColor(ctx, R.color.text_primary))
-            } else {
-                binding.participantMovingTime.text = ctx.getString(R.string.participant_dashboard_time_dash)
-                binding.participantMovingTime.setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary))
-            }
-
-            if (finishMs != null) {
-                binding.participantFinishTime.text = RaceUiFormatter.formatTime(finishMs)
-                binding.participantFinishTime.setTextColor(ContextCompat.getColor(ctx, R.color.text_primary))
-            } else {
-                binding.participantFinishTime.text = ctx.getString(R.string.participant_protocol_finish_empty)
+            if (row.isVolunteer) {
+                binding.participantMovingTime.visibility = View.GONE
+                binding.participantFinishTime.text = ctx.getString(R.string.participant_volunteer_label)
                 binding.participantFinishTime.setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary))
+            } else {
+                binding.participantMovingTime.visibility = View.VISIBLE
+                if (startMs != null && finishMs != null) {
+                    val delta = (finishMs - startMs).coerceAtLeast(0L)
+                    binding.participantMovingTime.text = RaceUiFormatter.formatElapsed(delta)
+                    binding.participantMovingTime.setTextColor(ContextCompat.getColor(ctx, R.color.text_primary))
+                } else {
+                    binding.participantMovingTime.text = ctx.getString(R.string.participant_dashboard_time_dash)
+                    binding.participantMovingTime.setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary))
+                }
+
+                if (finishMs != null) {
+                    binding.participantFinishTime.text = RaceUiFormatter.formatTime(finishMs)
+                    binding.participantFinishTime.setTextColor(ContextCompat.getColor(ctx, R.color.text_primary))
+                } else {
+                    binding.participantFinishTime.text = ctx.getString(R.string.participant_protocol_finish_empty)
+                    binding.participantFinishTime.setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary))
+                }
             }
 
             val showScanLine = scanTrim != null && scanTrim != nameTrim
@@ -124,10 +186,44 @@ class ParticipantDashboardAdapter(
             binding.btnFaceLookup.setOnClickListener { onFaceLookup(row.participantId) }
             binding.btnScanCode.setOnClickListener { onScanCode(row.participantId) }
             binding.btnRemoveParticipant.setOnClickListener { onRemove(row.participantId) }
+
+            // Reset drag state on a full bind.
+            applyDragState(isDragSource = false, isDropTarget = false)
+        }
+
+        /**
+         * Updates only the card's visual drag state without touching text / thumbnail bindings.
+         * Called from both full bind and partial-payload updates.
+         */
+        fun applyDragState(isDragSource: Boolean, isDropTarget: Boolean) {
+            val card = binding.root as MaterialCardView
+            val ctx = card.context
+            when {
+                isDragSource -> {
+                    card.alpha = 0.45f
+                    card.strokeWidth = 0
+                }
+                isDropTarget -> {
+                    card.alpha = 1f
+                    val strokePx = TypedValue.applyDimension(
+                        TypedValue.COMPLEX_UNIT_DIP, 3f, ctx.resources.displayMetrics,
+                    ).toInt()
+                    card.strokeWidth = strokePx
+                    card.setStrokeColor(
+                        ColorStateList.valueOf(ContextCompat.getColor(ctx, R.color.accent_pink)),
+                    )
+                }
+                else -> {
+                    card.alpha = 1f
+                    card.strokeWidth = 0
+                }
+            }
         }
     }
 
     companion object {
+        private const val PAYLOAD_DRAG_STATE = "drag_state"
+
         private const val REGISTRY_INFO_SEPARATOR = " · "
 
         /**

@@ -16,6 +16,7 @@ import com.journeyapps.barcodescanner.ScanIntentResult
 import com.journeyapps.barcodescanner.ScanOptions
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
@@ -200,6 +201,17 @@ class RaceDetailFragment : Fragment() {
         binding.participantsRecycler.adapter = participantAdapter
         binding.participantsRecycler.itemAnimator = null
 
+        ItemTouchHelper(
+            ParticipantMergeDragCallback(participantAdapter) { donor, keeper ->
+                participantActions.confirmMergeParticipants(
+                    donorId = donor.participantId,
+                    keeperId = keeper.participantId,
+                    donorLabel = donor.displayLabel(),
+                    keeperLabel = keeper.displayLabel(),
+                )
+            },
+        ).attachToRecyclerView(binding.participantsRecycler)
+
         eventPhotosAdapter = RaceEventPhotosGridAdapter(viewLifecycleOwner.lifecycleScope) { _, index ->
             RaceEventPhotoViewerDialogFragment.show(
                 requireActivity().supportFragmentManager,
@@ -260,6 +272,7 @@ class RaceDetailFragment : Fragment() {
 
         binding.btnPreStartPhoto.setOnClickListener { raceFlowActions.onPreStartPhotoClicked() }
         binding.btnTakeFinishPhoto.setOnClickListener { raceFlowActions.onTakeFinishPhotoClicked() }
+        binding.btnTakeVolunteerPhoto.setOnClickListener { raceFlowActions.onTakeVolunteerPhotoClicked() }
         binding.btnRaceAction.setOnClickListener {
             val race = latestRace ?: return@setOnClickListener
             if (race.status == RaceStatus.CREATED) {
@@ -283,6 +296,7 @@ class RaceDetailFragment : Fragment() {
         binding.btnTestSingleFinishPhoto.setOnClickListener {
             pickSingleFinishDocument.launch(arrayOf("image/*"))
         }
+        binding.btnExportDebugBundle.setOnClickListener { offlineTestActions.onExportDebugBundleClicked() }
 
         binding.btnAddManualFinish.setOnClickListener { participantActions.openManualFinishBottomSheet() }
 
@@ -353,6 +367,9 @@ class RaceDetailFragment : Fragment() {
         binding.postStartGroup.visibility = if (postStartVisible) View.VISIBLE else View.GONE
 
         binding.btnTakeFinishPhoto.isEnabled =
+            race.status != RaceStatus.EXPORTED
+
+        binding.btnTakeVolunteerPhoto.isEnabled =
             race.status != RaceStatus.EXPORTED
 
     }

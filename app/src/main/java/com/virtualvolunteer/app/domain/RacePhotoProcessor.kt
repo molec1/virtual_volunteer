@@ -59,6 +59,16 @@ class RacePhotoProcessor(
         pipelineLog = ::pipelineLog,
     )
 
+    private val volunteerIngestor = VolunteerPhotoIngestor(
+        appContext = appContext,
+        races = races,
+        faces = faces,
+        embedder = embedder,
+        matcher = matcher,
+        decodeVisionBitmap = ::loadVisionBitmap,
+        pipelineLog = ::pipelineLog,
+    )
+
     private val finishDebug = FinishPhotoDebugAnalyzer(
         races = races,
         pool = pool,
@@ -80,6 +90,9 @@ class RacePhotoProcessor(
      */
     suspend fun ingestStartPhoto(raceId: String, photoFile: File): Result<Int> =
         startIngestor.ingest(raceId, photoFile)
+
+    suspend fun ingestVolunteerPhoto(raceId: String, photoFile: File): Result<Int> =
+        volunteerIngestor.ingest(raceId, photoFile)
 
     suspend fun ingestFinishPhoto(raceId: String, photoFile: File): Result<Int> = runCatching {
         val ts = PhotoTimestampResolver.resolveEpochMillis(photoFile)
@@ -182,6 +195,12 @@ class RacePhotoProcessor(
             val dir = RacePaths.finishPhotosDir(context, raceId)
             dir.mkdirs()
             return File(dir, "finish_${System.currentTimeMillis()}.jpg")
+        }
+
+        fun defaultOutputVolunteerPhotoFile(context: Context, raceId: String): File {
+            val dir = RacePaths.volunteerPhotosDir(context, raceId)
+            dir.mkdirs()
+            return File(dir, "volunteer_${System.currentTimeMillis()}.jpg")
         }
 
         fun uniqueImportedFile(dir: File, originalName: String): File {

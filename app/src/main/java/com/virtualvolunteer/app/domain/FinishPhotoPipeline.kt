@@ -37,9 +37,120 @@ internal class FinishPhotoPipeline(
         private const val TAG = "RacePhotoProcessor"
         private const val SERIES_PHOTO_WINDOW_MS = 3_000L
         private const val SERIES_MIN_COSINE = 0.3f
+        /**
+         * Relaxed cosine threshold for frames that are close in time (< [SERIES_TIGHT_WINDOW_MS]).
+         * When a runner is sprinting toward the camera their face can change angle rapidly between
+         * consecutive frames, causing the normal threshold to fail even though all positional checks
+         * (center delta, size ratio) pass.
+         *
+         * Calibrated on race cc7a5378:
+         *   • Confirmed same-finisher pairs with gap 334 ms, 640 ms, 717 ms, 1034 ms all have
+         *     cosine < 0.30 but pass center-delta (≤ 0.10) and size-ratio (≤ 2.5) checks.
+         *   • Window expanded from 500 ms → 2 000 ms because the motion-blur / angle-change
+         *     effect persists up to ~2 s for a sprinting approach.
+         * Spatial guards (SERIES_MAX_CENTER_DELTA=0.12, SERIES_MAX_SIZE_RATIO=3.0) remain the
+         * primary defence against false merges within this tight window.
+         */
+        private const val SERIES_MIN_COSINE_TIGHT = 0.20f
+        private const val SERIES_TIGHT_WINDOW_MS = 2_000L
         private const val SERIES_MAX_CENTER_DELTA = 0.12f
-        private const val SERIES_MAX_SIZE_RATIO = 2.25f
+        /**
+         * Max size ratio between a face in photo N and the same-area face in photo N-1 to be
+         * considered a series match. Raised from 2.25 to 3.0 because a runner approaching the
+         * camera at finish speed can grow 2.4–2.5× between consecutive frames (≈300–700 ms
+         * apart). The cosine-similarity gate remains the primary guard against false matches.
+         * Calibrated on race cc7a5378: ratio=2.42 blocked 29→31 and 2.44 blocked 53→54.
+         */
+        private const val SERIES_MAX_SIZE_RATIO = 3.0f
         private val FINISH_FILENAME_MILLIS = Regex("""^finish_(\d{10,})""")
+
+        /**
+         * Two-parameter small-face filter applied when the photo contains at least one face
+         * whose area meets [SMALL_FACE_MIN_AREA_PX2].  Any face that fails either condition
+         * is skipped (its embedding is never computed and no participant row is created):
+         *
+         *   1. Absolute floor — area ≥ SMALL_FACE_MIN_AREA_PX2
+         *   2. Relative floor — area ≥ maxFaceArea / SMALL_FACE_RELATIVE_RATIO
+         *
+         * The effective per-photo cutoff is `max(SMALL_FACE_MIN_AREA_PX2, maxFaceArea / ratio)`.
+         * If every detected face is below [SMALL_FACE_MIN_AREA_PX2] the filter is inactive
+         * and all faces are processed normally (e.g. a solo runner appearing small in an
+         * early burst frame).
+         *
+         * Calibrated on race cc7a5378 (89 finish photos, 18 confirmed finishers, 62 noise):
+         *   • ABS=10 000 alone eliminates 20 noise entries; +÷3 eliminates 7 more (27 total).
+         *   • All 18 protocol participants and all 10 borderline candidates are preserved.
+         *   • Boundary case: pid=879 (Евгений КУЗНЕЦОВ, area ≈ 12–15 k) is the tightest
+         *     survivor — in burst #15 the photo-max never exceeds 75 k, so ratio÷3 keeps the
+         *     cutoff at 10 000 and pid=879 passes on the very first frame, then series
+         *     carry-over protects subsequent frames.  Tightening to ÷2 would drop pid=879.
+         */
+        internal const val SMALL_FACE_MIN_AREA_PX2 = 10_000
+
+        /**
+         * Relative divisor for the small-face filter (see [SMALL_FACE_MIN_AREA_PX2]).
+         * A face is skipped when its area < maxFaceAreaInPhoto / SMALL_FACE_RELATIVE_RATIO,
+         * provided the absolute filter is already active.  Value 3 means faces occupying
+         * less than 1/3 of the largest face in the same photo are discarded.
+         */
+        internal const val SMALL_FACE_RELATIVE_RATIO = 3
+
+        /**
+         * Unconditional hard floor: any face whose bounding-box area is below this value is
+         * always skipped, regardless of other faces in the same photo.  This catches accidental
+         * detections of very distant background faces that would otherwise sneak through when
+         * they are the only face detected in a frame (so the conditional [SMALL_FACE_MIN_AREA_PX2]
+         * filter would be inactive).
+         *
+         * Calibrated on race cc7a5378: the smallest confirmed real-participant area (across all
+         * their detected frames) was ≈ 4 900 px² (Irina LARINA, early burst frame appearing
+         * alone).  A floor of 3 000 px² eliminates phantom detections (areas 884–2 867 px²)
+         * while leaving genuine solo-runner frames intact.
+         */
+        internal const val SMALL_FACE_HARD_FLOOR_PX2 = 3_000
+
+        /**
+         * Minimum cosine similarity required to append a new embedding to an existing
+         * participant's pool via a standard (non-series) pool match.
+         *
+         * Setting this higher than the detection threshold prevents the "magnet" effect:
+         * once a participant accumulates a few marginal-cosine wrong-person detections their
+         * embedding set diversifies, causing even more wrong future matches.  Series matches
+         * are exempt because temporal and spatial guards already ensure the same physical
+         * person; their embedding is always worth appending.
+         *
+         * Calibrated on race cc7a5378: pid=1098 (Kostya, finished 17:50) accumulated 26
+         * finish detections across 15+ minutes — including faces at cx=0.058 (far left edge)
+         * and at 34:20 (15 min after his finish) — because each low-quality pool match
+         * appended another alien embedding.  With this guard those detections are still
+         * recorded (finish time unchanged) but don't pollute the embedding set.
+         */
+        private const val FINISH_EMBED_APPEND_MIN_COSINE = 0.50f
+
+        /**
+         * Edge-of-frame filter — two-part rule that suppresses bystanders/volunteers at
+         * the left or right edges of the finish corridor without removing genuine approaching
+         * runners (who may briefly be off-centre but have small, distant faces).
+         *
+         * Part A — Profile-peripheral filter (narrow face at edge):
+         *   Skip when width / height < [PERIPHERAL_PROFILE_ASPECT_RATIO] (sideways face)
+         *   AND |cx − 0.5| > [PERIPHERAL_X_HALF]
+         *   AND (face is alone in frame OR any other face is strictly more central by >[PERIPHERAL_CENTER_MARGIN]).
+         *   No area comparison: the side-view shape is already a strong enough discriminator.
+         *
+         * Part B — Frontal-edge filter (upright face at edge, large enough to be nearby):
+         *   Skip when width / height ≥ [PERIPHERAL_PROFILE_ASPECT_RATIO] (frontal face)
+         *   AND |cx − 0.5| > [FRONTAL_EDGE_X]
+         *   AND raw face area ≥ [FRONTAL_EDGE_MIN_AREA_PX2] (exclude small/distant approaching runners)
+         *   AND any other face in the same frame is strictly more central by > [PERIPHERAL_CENTER_MARGIN].
+         *   Faces below the area floor are kept: a tiny face at the edge is likely a runner
+         *   still approaching from far away, not a standing bystander.
+         */
+        private const val PERIPHERAL_PROFILE_ASPECT_RATIO = 0.65f
+        private const val PERIPHERAL_X_HALF = 0.19f
+        private const val PERIPHERAL_CENTER_MARGIN = 0.05f
+        private const val FRONTAL_EDGE_X = 0.20f
+        private const val FRONTAL_EDGE_MIN_AREA_PX2 = 15_000
     }
 
     private val recentFinishPhotosByRace = mutableMapOf<String, RecentFinishPhoto>()
@@ -104,17 +215,99 @@ internal class FinishPhotoPipeline(
                 )
             }
 
+            // Hard floor: always applied, unconditionally.
+            val afterHardFloor = detected.filter {
+                it.boundingBox.width() * it.boundingBox.height() >= SMALL_FACE_HARD_FLOOR_PX2
+            }
+            val hardFloorSkipped = detected.size - afterHardFloor.size
+            if (hardFloorSkipped > 0) {
+                val msg = "hardFloor skipped=$hardFloorSkipped floor=$SMALL_FACE_HARD_FLOOR_PX2"
+                pipelineLog(msg); sb.appendLine(msg)
+            }
+
+            if (afterHardFloor.isEmpty()) {
+                pipelineLog("STOP: no faces after hard floor (no match / no finish row)")
+                rememberRecentFinishPhoto(
+                    raceId = raceId,
+                    photoFile = photoFile,
+                    captureTimeEpochMillis = seriesCaptureTimeEpochMillis,
+                    faces = emptyList(),
+                )
+                return FinishProcessResult(
+                    newRecordsInserted = 0,
+                    logText = sb.toString(),
+                    decodeSucceeded = true,
+                    detectedFaceCount = detected.size,
+                )
+            }
+
+            // Conditional relative+absolute filter: active only when the photo has
+            // at least one face meeting the absolute minimum.
+            val maxRawFaceAreaPx2 = afterHardFloor.maxOf { it.boundingBox.width() * it.boundingBox.height() }
+            val filterSmallFaces = maxRawFaceAreaPx2 >= SMALL_FACE_MIN_AREA_PX2
+            val effectiveCutoffPx2 = if (filterSmallFaces) {
+                maxOf(SMALL_FACE_MIN_AREA_PX2, maxRawFaceAreaPx2 / SMALL_FACE_RELATIVE_RATIO)
+            } else {
+                0
+            }
+            val facesToProcess = if (filterSmallFaces) {
+                afterHardFloor.filter { it.boundingBox.width() * it.boundingBox.height() >= effectiveCutoffPx2 }
+            } else {
+                afterHardFloor
+            }
+            val smallFacesSkipped = afterHardFloor.size - facesToProcess.size
+            if (smallFacesSkipped > 0) {
+                val msg = "smallFaceFilter skipped=$smallFacesSkipped maxFaceArea=$maxRawFaceAreaPx2 " +
+                    "effectiveCutoff=$effectiveCutoffPx2 absMin=$SMALL_FACE_MIN_AREA_PX2 ratio=$SMALL_FACE_RELATIVE_RATIO"
+                pipelineLog(msg)
+                sb.appendLine(msg)
+            }
+
             val facesDir = RacePaths.facesDir(appContext, raceId)
             facesDir.mkdirs()
 
             var newRows = 0
             val currentSeriesFaces = mutableListOf<RecentFinishFace>()
             val participantIdsUsedThisPhoto = mutableSetOf<Long>()
-            detected.forEachIndexed { index, face ->
+            facesToProcess.forEachIndexed { index, face ->
                 val faceNum = index + 1
                 var optionalFinishThumb: File? = null
                 val raw = Rect(face.boundingBox)
                 val rawFaceHeightPx = raw.height()
+
+                // Edge-of-frame filter — Part A (profile) and Part B (frontal).
+                val profileAspect = raw.width().toFloat() / rawFaceHeightPx
+                val rawCxNorm = raw.exactCenterX() / bmp.width
+                val cxHalfDist = kotlin.math.abs(rawCxNorm - 0.5f)
+                val faceRawArea = raw.width() * raw.height()
+                val isAlone = facesToProcess.size == 1
+                // Returns true if any other face in this photo is strictly more central.
+                fun hasCenterFace(): Boolean = !isAlone && facesToProcess.any { other ->
+                    if (other === face) return@any false
+                    val oCxNorm = other.boundingBox.exactCenterX() / bmp.width
+                    kotlin.math.abs(oCxNorm - 0.5f) < cxHalfDist - PERIPHERAL_CENTER_MARGIN
+                }
+                val isProfile = profileAspect < PERIPHERAL_PROFILE_ASPECT_RATIO
+                val edgeSkip = when {
+                    // Part A: profile (sideways) face at edge — skip if alone or any center face
+                    isProfile && cxHalfDist > PERIPHERAL_X_HALF ->
+                        isAlone || hasCenterFace()
+                    // Part B: frontal face at edge, large enough to be a nearby bystander —
+                    // skip only when a center face is present (lone edge runner is kept)
+                    !isProfile && cxHalfDist > FRONTAL_EDGE_X && faceRawArea >= FRONTAL_EDGE_MIN_AREA_PX2 ->
+                        hasCenterFace()
+                    else -> false
+                }
+                if (edgeSkip) {
+                    val tag = if (isProfile) "profile_peripheral_skip" else "frontal_edge_skip"
+                    val msg = "face#$faceNum $tag " +
+                        "aspect=${"%.2f".format(profileAspect)} " +
+                        "cxNorm=${"%.3f".format(rawCxNorm)} " +
+                        "area=$faceRawArea alone=$isAlone"
+                    pipelineLog(msg); sb.appendLine(msg)
+                    return@forEachIndexed
+                }
+
                 val expanded = FaceCropBounds.expandFaceRect(raw, bmp.width, bmp.height, margin)
                 val boxLine =
                     "face#$faceNum rawBoundingBox=$raw expandedBoundingBox=$expanded marginPerSide=$margin"
@@ -272,6 +465,45 @@ internal class FinishPhotoPipeline(
                         EmbeddingMath.cosineSimilarity(vec, EmbeddingMath.parseCommaSeparated(resolvedParticipant.embedding))
                 }
 
+                val matchedExistingParticipant = standardMatchInAvailable != null || seriesParticipant != null
+
+                if (resolvedParticipant.isVolunteer) {
+                    // Volunteer recognised in the finish zone — update embeddings so future
+                    // frames keep matching, but do NOT record a finish detection or touch the
+                    // protocol finish time.
+                    val appendedEmbedding = if (matchedExistingParticipant &&
+                        (seriesParticipant != null || cos >= FINISH_EMBED_APPEND_MIN_COSINE)
+                    ) {
+                        races.appendParticipantEmbeddingIfNew(
+                            raceId = raceId,
+                            participantId = resolvedParticipant.id,
+                            embeddingCommaSeparated = observedStr,
+                            sourceType = EmbeddingSourceType.FINISH_AUTO,
+                            sourcePhotoPath = photoFile.absolutePath,
+                            qualityScore = cos,
+                            createdAtEpochMillis = finishTimeEpochMillis,
+                        )
+                    } else {
+                        false
+                    }
+                    currentSeriesFaces += RecentFinishFace(
+                        participant = resolvedParticipant,
+                        embedding = vec,
+                        box = Rect(expanded),
+                        visionWidth = bmp.width,
+                        visionHeight = bmp.height,
+                    )
+                    participantIdsUsedThisPhoto += resolvedParticipant.id
+                    pipelineLog(
+                        "face#$faceNum volunteer_recognised participantId=${resolvedParticipant.id} " +
+                            "cos=$cos embeddingAppended=$appendedEmbedding finish_detection=skipped",
+                    )
+                    sb.appendLine(
+                        "face#$faceNum volunteer participant=${resolvedParticipant.id} cos=$cos finish_detection=skipped",
+                    )
+                    return@forEachIndexed
+                }
+
                 val outcome = races.recordFinishDetectionForParticipant(
                     raceId = raceId,
                     participantId = resolvedParticipant.id,
@@ -281,8 +513,13 @@ internal class FinishPhotoPipeline(
                     sourceEmbedding = vec,
                 )
 
-                val matchedExistingParticipant = standardMatchInAvailable != null || seriesParticipant != null
-                val appendedEmbedding = if (matchedExistingParticipant) {
+                // Series matches are always allowed to enrich the embedding set (same person in
+                // a burst, guarded by spatial checks).  Standard pool matches only append when
+                // the cosine is high enough to avoid the magnet drift described in
+                // FINISH_EMBED_APPEND_MIN_COSINE.
+                val appendedEmbedding = if (matchedExistingParticipant &&
+                    (seriesParticipant != null || cos >= FINISH_EMBED_APPEND_MIN_COSINE)
+                ) {
                     races.appendParticipantEmbeddingIfNew(
                         raceId = raceId,
                         participantId = resolvedParticipant.id,
@@ -386,13 +623,14 @@ internal class FinishPhotoPipeline(
         val deltaMs = currentCaptureTimeEpochMillis - previous.captureTimeEpochMillis
         if (deltaMs < 0L || deltaMs >= SERIES_PHOTO_WINDOW_MS) return null
 
+        val cosineThreshold = if (deltaMs < SERIES_TIGHT_WINDOW_MS) SERIES_MIN_COSINE_TIGHT else SERIES_MIN_COSINE
         var best: RecentSeriesMatch? = null
         previous.faces.forEach { face ->
             if (face.participant.id in participantIdsUsedThisPhoto) return@forEach
             if (!isSameImageArea(currentFaceBox, currentVisionWidth, currentVisionHeight, face)) return@forEach
             if (face.embedding.size != currentEmbedding.size) return@forEach
             val cosine = EmbeddingMath.cosineSimilarity(currentEmbedding, face.embedding)
-            if (cosine < SERIES_MIN_COSINE) return@forEach
+            if (cosine < cosineThreshold) return@forEach
             if (best == null || cosine > best!!.cosineSimilarity) {
                 best = RecentSeriesMatch(face = face, cosineSimilarity = cosine, deltaMs = deltaMs)
             }
