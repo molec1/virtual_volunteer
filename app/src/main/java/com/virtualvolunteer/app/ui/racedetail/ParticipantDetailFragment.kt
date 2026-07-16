@@ -54,7 +54,17 @@ class ParticipantDetailFragment : Fragment() {
         val app = requireActivity().application as VirtualVolunteerApp
         val repo = app.raceRepository
 
-        embeddingAdapter = ParticipantEmbeddingPreviewAdapter(viewLifecycleOwner.lifecycleScope)
+        embeddingAdapter = ParticipantEmbeddingPreviewAdapter(
+            lifecycleScope = viewLifecycleOwner.lifecycleScope,
+            onPhotoClick = { fullPath, participantHashId, raceId ->
+                ParticipantProtocolPhotoViewerDialogFragment.show(
+                    fm = childFragmentManager,
+                    paths = listOf(fullPath),
+                    participantHashId = participantHashId,
+                    raceId = raceId,
+                )
+            },
+        )
         binding.participantEmbeddingsRecycler.adapter = embeddingAdapter
         binding.participantEmbeddingsRecycler.layoutManager = LinearLayoutManager(
             requireContext(),
@@ -105,12 +115,17 @@ class ParticipantDetailFragment : Fragment() {
     private fun refreshParticipantDetail(repo: RaceRepository) {
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             val participant = repo.getParticipantHashById(participantId)
+            // The registry entity holds the best-quality face crop (selected by the background job).
+            val registryThumb = participant?.identityRegistryId?.let { rid ->
+                repo.getIdentityRegistryById(rid)?.primaryThumbnailPhotoPath
+                    ?.trim()?.takeIf { it.isNotBlank() && java.io.File(it).exists() }
+            }
             val races = repo.listRacesForParticipant(participantId)
             val embeddings = repo.listParticipantEmbeddingPreviews(participantId)
             withContext(Dispatchers.Main) {
                 if (_binding == null) return@withContext
                 if (participant != null) {
-                    bindParticipantHeader(participant)
+                    bindParticipantHeader(participant, registryThumb)
                     binding.btnDeleteDeviceIdentity.visibility =
                         if (participant.identityRegistryId != null) View.VISIBLE else View.GONE
                 }
@@ -123,19 +138,22 @@ class ParticipantDetailFragment : Fragment() {
         }
     }
 
-    private fun bindParticipantHeader(participant: RaceParticipantHashEntity) {
-        binding.participantDetailName.text = participant.displayName ?: "#${participant.id}"
+    private fun bindParticipantHeader(participant: RaceParticipantHashEntity, registryThumb: String?) {
+        binding.participantDetailName.text =
+            participant.scannedPayload?.takeIf { it.isNotBlank() } ?: "#${participant.id}"
         binding.participantDetailId.text = getString(R.string.participant_detail_protocol_id, participant.id)
         binding.participantDetailScanCode.text =
             participant.scannedPayload?.let { "Scan: $it" } ?: getString(R.string.identity_registry_no_scan)
 
+        // Prefer the registry's best-quality crop; fall back to the participant row's own paths.
         val thumbPath = sequenceOf(
+            registryThumb,
             participant.primaryThumbnailPhotoPath,
             participant.faceThumbnailPath,
         ).firstOrNull { !it.isNullOrBlank() }
         if (!thumbPath.isNullOrBlank()) {
             viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Default) {
-                val bmp = PreviewImageLoader.loadThumbnailOrientedInset(thumbPath, maxSidePx = 240)
+                val bmp = PreviewImageLoader.loadThumbnailOrientedInset(thumbPath, maxSidePx = 512)
                 withContext(Dispatchers.Main) {
                     if (_binding != null) binding.participantDetailThumbnail.setImageBitmap(bmp)
                 }
@@ -163,6 +181,7 @@ class ParticipantDetailFragment : Fragment() {
 
 private class ParticipantEmbeddingPreviewAdapter(
     private val lifecycleScope: LifecycleCoroutineScope,
+    private val onPhotoClick: (fullPhotoPath: String, participantHashId: Long, raceId: String) -> Unit,
 ) : ListAdapter<ParticipantEmbeddingPreviewRow, ParticipantEmbeddingPreviewAdapter.VH>(
     object : DiffUtil.ItemCallback<ParticipantEmbeddingPreviewRow>() {
         override fun areItemsTheSame(
@@ -183,7 +202,7 @@ private class ParticipantEmbeddingPreviewAdapter(
     }
 
     override fun onBindViewHolder(holder: VH, position: Int) {
-        holder.bind(getItem(position))
+        holder.bind(getItem(position), onPhotoClick)
     }
 
     class VH(
@@ -191,7 +210,10 @@ private class ParticipantEmbeddingPreviewAdapter(
         private val lifecycleScope: LifecycleCoroutineScope,
     ) : RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(row: ParticipantEmbeddingPreviewRow) {
+        fun bind(
+            row: ParticipantEmbeddingPreviewRow,
+            onPhotoClick: (fullPhotoPath: String, participantHashId: Long, raceId: String) -> Unit,
+        ) {
             val ctx = binding.root.context
             val repo = (ctx.applicationContext as VirtualVolunteerApp).raceRepository
             val sourceLabel = ctx.getString(
@@ -206,10 +228,12 @@ private class ParticipantEmbeddingPreviewAdapter(
                 sourceLabel,
                 row.raceLabelShort,
             )
-            val path = row.previewPhotoPath
-            if (!path.isNullOrBlank()) {
+
+            // Show face crop in the thumbnail; fall back to full preview photo if no crop stored
+            val thumbPath = row.faceCropPath ?: row.previewPhotoPath
+            if (!thumbPath.isNullOrBlank()) {
                 lifecycleScope.launch(Dispatchers.Default) {
-                    val bmp = PreviewImageLoader.loadThumbnailOrientedInset(path, maxSidePx = 176)
+                    val bmp = PreviewImageLoader.loadThumbnailOrientedInset(thumbPath, maxSidePx = 176)
                     withContext(Dispatchers.Main) {
                         if (bindingAdapterPosition != RecyclerView.NO_POSITION) {
                             binding.embeddingPreviewImage.setImageBitmap(bmp)
@@ -218,6 +242,17 @@ private class ParticipantEmbeddingPreviewAdapter(
                 }
             } else {
                 binding.embeddingPreviewImage.setImageResource(R.drawable.ic_person)
+            }
+
+            // Tap on the card opens the full-frame photo with face-box annotation
+            val fullPath = row.previewPhotoPath
+            if (!fullPath.isNullOrBlank()) {
+                binding.root.setOnClickListener {
+                    onPhotoClick(fullPath, row.participantHashId, row.raceId)
+                }
+            } else {
+                binding.root.setOnClickListener(null)
+                binding.root.isClickable = false
             }
 
             binding.btnDetachEmbedding.setOnClickListener {

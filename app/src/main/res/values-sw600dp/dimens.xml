@@ -3,5 +3,5 @@
     <dimen name="participant_row_thumb_size">72dp</dimen>
     <dimen name="participant_row_action_button_size">40dp</dimen>
     <dimen name="participant_row_vertical_padding">6dp</dimen>
-    <dimen name="identity_registry_card_thumb_height">120dp</dimen>
+    <dimen name="identity_registry_card_thumb_height">132dp</dimen>
 </resources>

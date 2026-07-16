@@ -64,7 +64,7 @@ class RaceParticipantPhotosBottomSheet : BottomSheetDialogFragment() {
                     binding.emptyHint.visibility = View.GONE
                 }
                 binding.sheetSubtitle.text = buildString {
-                    append(participant?.displayName ?: "#${participant?.id}")
+                    append(participant?.scannedPayload?.takeIf { it.isNotBlank() } ?: "#${participant?.id}")
                     append(" (")
                     append(race?.id?.take(8) ?: "Unknown Race")
                     append(")")

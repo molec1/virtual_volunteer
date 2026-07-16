@@ -31,10 +31,23 @@ import kotlinx.coroutines.flow.map
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 
+/**
+ * Face bounding box in the **vision bitmap** coordinate space (EXIF-rotated, same as ML Kit output).
+ * [sourceWidth]/[sourceHeight] are the vision bitmap dimensions used to scale the box to any decoded size.
+ */
+data class FaceBoundingBox(
+    val left: Int, val top: Int, val right: Int, val bottom: Int,
+    val sourceWidth: Int, val sourceHeight: Int,
+)
+
 /** One image file for a participant in a race; [isFinishFrame] is true only for the protocol.xml finish photo. */
 data class ParticipantRacePhoto(
     val absolutePath: String,
     val isFinishFrame: Boolean,
+    /** Precomputed face-crop JPEG path; use this when available (fastest). */
+    val faceCropPath: String? = null,
+    /** Bounding box for on-the-fly crop when [faceCropPath] is absent but manifest entry exists. */
+    val faceBoundingBox: FaceBoundingBox? = null,
 )
 
 /**
@@ -365,6 +378,9 @@ class RaceRepository(
     /** Device-local identities with a scanned code, newest first (standalone registry screen). */
     fun observeIdentityRegistry(): Flow<List<IdentityRegistryEntity>> =
         identityRegistryDao.observeWithScannedPayload()
+
+    suspend fun getIdentityRegistryById(id: Long): IdentityRegistryEntity? =
+        identityRegistryDao.getById(id)
 
     /**
      * When a registry row has no valid [IdentityRegistryEntity.primaryThumbnailPhotoPath] on disk,

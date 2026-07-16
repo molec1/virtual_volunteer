@@ -57,14 +57,6 @@
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                tools:text="Participant Name" />
-
-            <TextView
-                android:id="@+id/participantScanCode"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
                 android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
                 tools:text="ABC123" />
 

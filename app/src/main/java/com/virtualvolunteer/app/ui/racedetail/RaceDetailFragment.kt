@@ -194,7 +194,6 @@ class RaceDetailFragment : Fragment() {
         participantAdapter = ParticipantDashboardAdapter(
             onScanCode = { id -> participantActions.openBarcodeScan(id) },
             onRemove = { id -> participantActions.confirmRemoveParticipant(id) },
-            onEditDisplayName = { id, current -> participantActions.showParticipantNameEditor(id, current) },
             onOpenPhotos = { id -> participantActions.openRaceParticipantPhotos(raceId, id) },
             onFaceLookup = { id -> participantActions.openParticipantLookupForRow(id) },
         )
@@ -302,6 +301,7 @@ class RaceDetailFragment : Fragment() {
 
         binding.btnEditRaceStartTime.setOnClickListener { showEditRaceStartTimeDialog() }
 
+        binding.exportHeaderLayout.setOnClickListener { collapsibleSections.toggleExport(binding) }
         binding.offlineTestHeaderLayout.setOnClickListener { collapsibleSections.toggleOfflineTest(binding) }
         binding.eventPhotosHeaderLayout.setOnClickListener { collapsibleSections.toggleEventPhotos(binding) }
         binding.participantsHeaderLayout.setOnClickListener { collapsibleSections.toggleParticipants(binding) }
@@ -330,12 +330,7 @@ class RaceDetailFragment : Fragment() {
     }
 
     private fun renderUi(race: RaceEntity) {
-        binding.raceIdText.text = getString(R.string.race_detail_title) + ": " + race.id.take(8) + "…"
-        binding.createdText.text = getString(R.string.race_created_label) + ": " +
-            RaceUiFormatter.formatDate(race.createdAtEpochMillis) + " " +
-            RaceUiFormatter.formatTime(race.createdAtEpochMillis)
-
-        binding.statusText.text = getString(R.string.race_status_label) + ": " + RaceUiFormatter.formatStatus(race.status)
+        requireActivity().title = RaceUiFormatter.formatDate(race.createdAtEpochMillis)
 
         val startMs = race.startedAtEpochMillis
         binding.raceStartTimeValue.text = if (startMs != null) {
@@ -365,6 +360,7 @@ class RaceDetailFragment : Fragment() {
 
         val postStartVisible = race.status != RaceStatus.CREATED
         binding.postStartGroup.visibility = if (postStartVisible) View.VISIBLE else View.GONE
+        binding.btnAddManualFinish.visibility = if (postStartVisible) View.VISIBLE else View.GONE
 
         binding.btnTakeFinishPhoto.isEnabled =
             race.status != RaceStatus.EXPORTED

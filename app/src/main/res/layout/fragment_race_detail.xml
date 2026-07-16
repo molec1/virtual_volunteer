@@ -16,6 +16,7 @@
         android:paddingTop="12dp"
         android:paddingBottom="28dp">
 
+        <!-- Header: Race start time (prominent) + Start/Stop button -->
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/raceHeaderRow"
             android:layout_width="match_parent"
@@ -31,50 +32,26 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent">
 
-                <TextView
-                    android:id="@+id/raceIdText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.ScreenTitle"
-                    tools:text="Race id" />
-
-                <TextView
-                    android:id="@+id/createdText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingTop="8dp"
-                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
-                    tools:text="Created: ..." />
-
-                <TextView
-                    android:id="@+id/statusText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingTop="6dp"
-                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
-                    tools:text="Status: ..." />
-
                 <LinearLayout
                     android:id="@+id/raceStartTimeRow"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingTop="8dp">
+                    android:orientation="horizontal">
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/race_start_time_label"
-                        android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta" />
+                        android:textAppearance="@style/TextAppearance.VirtualVolunteer.TitleMedium" />
 
                     <TextView
                         android:id="@+id/raceStartTimeValue"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
+                        android:layout_marginStart="10dp"
                         android:layout_weight="1"
-                        android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
+                        android:textAppearance="@style/TextAppearance.VirtualVolunteer.TitleMedium"
                         tools:text="2026-04-21 10:00:00" />
 
                     <ImageButton
@@ -116,6 +93,7 @@
                 tools:visibility="visible" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
+        <!-- Timer -->
         <LinearLayout
             android:id="@+id/timerRow"
             android:layout_width="match_parent"
@@ -142,7 +120,7 @@
                 tools:text="00:00" />
         </LinearLayout>
 
-        <!-- Before start -->
+        <!-- Pre-start photo (before race starts) -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnPreStartPhoto"
             style="@style/Widget.VirtualVolunteer.Button.Secondary"
@@ -151,6 +129,7 @@
             android:layout_marginTop="@dimen/section_spacing_large"
             android:text="@string/btn_pre_start_photo" />
 
+        <!-- Photo buttons after race starts -->
         <LinearLayout
             android:id="@+id/postStartGroup"
             android:layout_width="match_parent"
@@ -168,55 +147,169 @@
                 android:text="@string/btn_take_finish_photo" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnAddManualFinish"
-                style="@style/Widget.VirtualVolunteer.Button.Secondary"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="@string/btn_add_manual_finish" />
-
-            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnTakeVolunteerPhoto"
                 style="@style/Widget.VirtualVolunteer.Button.Secondary"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:text="@string/btn_take_volunteer_photo" />
-
         </LinearLayout>
 
-        <!-- Export -->
-        <TextView
+        <!-- Protocol -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/participantsCard"
+            style="@style/Widget.VirtualVolunteer.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="@dimen/section_spacing_large"
-            android:text="@string/race_detail_section_export"
-            android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel" />
+            android:layout_marginTop="@dimen/section_spacing_large">
 
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:id="@+id/participantsHeaderLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="@dimen/card_padding">
+
+                    <TextView
+                        android:id="@+id/dashboardParticipantsTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/dashboard_participants_title"
+                        android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel"
+                        android:visibility="gone"
+                        tools:visibility="visible" />
+
+                    <ImageView
+                        android:id="@+id/participantsExpandIcon"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:contentDescription="@string/expand_collapse_cd"
+                        android:src="@drawable/ic_chevron_up" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/participantsContent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="6dp"
+                    android:paddingBottom="@dimen/card_padding">
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/participantsRecycler"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:clipToPadding="false"
+                        android:nestedScrollingEnabled="false"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"
+                        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                        tools:itemCount="4"
+                        tools:listitem="@layout/participant_dashboard_row"
+                        tools:visibility="visible" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Add participant manually (visible after race starts) -->
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnExport"
+            android:id="@+id/btnAddManualFinish"
             style="@style/Widget.VirtualVolunteer.Button.Secondary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/btn_export_results" />
+            android:layout_marginTop="12dp"
+            android:text="@string/btn_add_manual_finish"
+            android:visibility="gone"
+            tools:visibility="visible" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnExportTimesCsv"
-            style="@style/Widget.VirtualVolunteer.Button.Secondary"
+        <!-- Export (collapsible) -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/exportCard"
+            style="@style/Widget.VirtualVolunteer.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/btn_export_times_csv" />
+            android:layout_marginTop="@dimen/section_spacing_large">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnExportParticipantsCsv"
-            style="@style/Widget.VirtualVolunteer.Button.Secondary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/btn_export_participants_csv" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
 
+                <LinearLayout
+                    android:id="@+id/exportHeaderLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="@dimen/card_padding">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/race_detail_section_export"
+                        android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel" />
+
+                    <ImageView
+                        android:id="@+id/exportExpandIcon"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:contentDescription="@string/expand_collapse_cd"
+                        android:src="@drawable/ic_chevron_down" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/exportContent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="@dimen/card_padding"
+                    android:paddingBottom="@dimen/card_padding"
+                    android:visibility="gone"
+                    tools:visibility="visible">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnExport"
+                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/btn_export_results" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnExportTimesCsv"
+                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/btn_export_times_csv" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnExportParticipantsCsv"
+                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/btn_export_participants_csv" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- All event photos -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/eventPhotosCard"
             style="@style/Widget.VirtualVolunteer.Card"
@@ -291,7 +384,7 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Offline -->
+        <!-- Offline testing -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/offlineTestCard"
             style="@style/Widget.VirtualVolunteer.Card"
@@ -390,78 +483,13 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/participantsCard"
-            style="@style/Widget.VirtualVolunteer.Card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/section_spacing_large">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
-
-                <LinearLayout
-                    android:id="@+id/participantsHeaderLayout"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="?attr/selectableItemBackground"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:padding="@dimen/card_padding">
-
-                    <TextView
-                        android:id="@+id/dashboardParticipantsTitle"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="@string/dashboard_participants_title"
-                        android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel"
-                        android:visibility="gone"
-                        tools:visibility="visible" />
-
-                    <ImageView
-                        android:id="@+id/participantsExpandIcon"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:contentDescription="@string/expand_collapse_cd"
-                        android:src="@drawable/ic_chevron_up" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/participantsContent"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:paddingHorizontal="6dp"
-                    android:paddingBottom="@dimen/card_padding">
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/participantsRecycler"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:clipToPadding="false"
-                        android:nestedScrollingEnabled="false"
-                        android:paddingTop="8dp"
-                        android:paddingBottom="8dp"
-                        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-                        tools:itemCount="4"
-                        tools:listitem="@layout/participant_dashboard_row"
-                        tools:visibility="visible" />
-                </LinearLayout>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
+        <!-- Debug (pipeline log) -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/pipelineDebugCard"
             style="@style/Widget.VirtualVolunteer.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/section_spacing_medium">
+            android:layout_marginTop="@dimen/section_spacing_large">
 
             <LinearLayout
                 android:layout_width="match_parent"

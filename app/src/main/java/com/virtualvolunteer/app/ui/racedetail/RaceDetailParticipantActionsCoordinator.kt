@@ -1,7 +1,6 @@
 package com.virtualvolunteer.app.ui.racedetail
 
 import android.graphics.Color
-import android.widget.EditText
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -23,26 +22,6 @@ class RaceDetailParticipantActionsCoordinator(
         val id = pendingScanParticipantId
         pendingScanParticipantId = null
         return id
-    }
-
-    fun showParticipantNameEditor(participantId: Long, currentName: String?) {
-        val input = EditText(fragment.requireContext()).apply {
-            setText(currentName.orEmpty())
-            hint = fragment.getString(R.string.participant_tap_to_name)
-            setPadding(48, 32, 48, 16)
-        }
-        MaterialAlertDialogBuilder(fragment.requireContext())
-            .setTitle(R.string.participant_name_dialog_title)
-            .setView(input)
-            .setNegativeButton(R.string.action_cancel, null)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                val text = input.text?.toString()
-                fragment.lifecycleScope.launch(Dispatchers.IO) {
-                    (fragment.requireActivity().application as VirtualVolunteerApp).raceRepository
-                        .updateParticipantDisplayName(raceId, participantId, text)
-                }
-            }
-            .show()
     }
 
     fun openBarcodeScan(participantId: Long) {

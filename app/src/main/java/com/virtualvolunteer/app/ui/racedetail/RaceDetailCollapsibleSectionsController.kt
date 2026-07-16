@@ -5,12 +5,18 @@ import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.databinding.FragmentRaceDetailBinding
 
 class RaceDetailCollapsibleSectionsController {
+    var exportExpanded = false
     var offlineTestExpanded = false
     var eventPhotosExpanded = false
     var participantsExpanded = true
     var pipelineDebugExpanded = false
 
     fun render(binding: FragmentRaceDetailBinding) {
+        binding.exportContent.visibility = if (exportExpanded) View.VISIBLE else View.GONE
+        binding.exportExpandIcon.setImageResource(
+            if (exportExpanded) R.drawable.ic_chevron_up else R.drawable.ic_chevron_down,
+        )
+
         binding.offlineTestContent.visibility = if (offlineTestExpanded) View.VISIBLE else View.GONE
         binding.offlineTestExpandIcon.setImageResource(
             if (offlineTestExpanded) R.drawable.ic_chevron_up else R.drawable.ic_chevron_down,
@@ -30,6 +36,11 @@ class RaceDetailCollapsibleSectionsController {
         binding.pipelineDebugExpandIcon.setImageResource(
             if (pipelineDebugExpanded) R.drawable.ic_chevron_up else R.drawable.ic_chevron_down,
         )
+    }
+
+    fun toggleExport(binding: FragmentRaceDetailBinding) {
+        exportExpanded = !exportExpanded
+        render(binding)
     }
 
     fun toggleOfflineTest(binding: FragmentRaceDetailBinding) {

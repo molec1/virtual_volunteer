@@ -37,7 +37,7 @@
         android:id="@+id/registryJsonActions"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         android:paddingHorizontal="@dimen/screen_horizontal_padding"
         android:paddingTop="8dp"
         android:paddingBottom="12dp"
@@ -48,16 +48,18 @@
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnExportParticipantsJson"
             style="@style/Widget.VirtualVolunteer.Button.Secondary"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:text="@string/btn_export_participants_json" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnImportParticipantsJson"
             style="@style/Widget.VirtualVolunteer.Button.Secondary"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
             android:text="@string/btn_import_participants_json" />
     </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

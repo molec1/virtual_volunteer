@@ -1,5 +1,6 @@
 package com.virtualvolunteer.app.data.repository
 
+import android.graphics.BitmapFactory
 import com.virtualvolunteer.app.data.local.IdentityRegistryDao
 import com.virtualvolunteer.app.data.local.IdentityRegistryEntity
 import com.virtualvolunteer.app.data.local.ParticipantEmbeddingDao
@@ -14,22 +15,37 @@ internal class IdentityAssignmentHelper(
     private val participantHashDao: ParticipantHashDao,
     private val participantEmbeddingDao: ParticipantEmbeddingDao,
 ) {
+    /**
+     * For each registry row, picks the face crop with the largest pixel area from all linked
+     * participant rows (faceThumbnailPath preferred; primaryThumbnailPhotoPath as fallback).
+     * Always re-evaluates so the best crop is promoted even after new photos arrive.
+     */
     suspend fun ensureIdentityRegistryThumbnailsFromLinkedParticipants(rows: List<IdentityRegistryEntity>) {
         for (row in rows) {
-            val cur = row.primaryThumbnailPhotoPath?.trim().orEmpty()
-            if (cur.isNotBlank() && File(cur).exists()) continue
+            val hashes = participantHashDao.listHashesForIdentityRegistry(row.id)
 
-            val hashes = participantHashDao.listHashesForIdentityRegistry(row.id).asReversed()
-            val picked = hashes.firstNotNullOfOrNull { h ->
-                sequenceOf(h.faceThumbnailPath, h.primaryThumbnailPhotoPath)
-                    .firstOrNull { p ->
-                        val t = p?.trim().orEmpty()
-                        t.isNotBlank() && File(t).exists()
-                    }?.trim()
-            } ?: continue
+            // Face crops first: their total pixel count equals the face area captured.
+            val faceCrops = hashes.mapNotNull { h ->
+                h.faceThumbnailPath?.trim()?.takeIf { it.isNotBlank() && File(it).exists() }
+            }
+            val candidates = faceCrops.ifEmpty {
+                hashes.mapNotNull { h ->
+                    h.primaryThumbnailPhotoPath?.trim()?.takeIf { it.isNotBlank() && File(it).exists() }
+                }
+            }
+            if (candidates.isEmpty()) continue
 
-            identityRegistryDao.updatePrimaryThumbnailPath(row.id, picked)
+            val best = candidates.maxByOrNull { path -> pixelArea(path) } ?: continue
+            if (row.primaryThumbnailPhotoPath?.trim() != best) {
+                identityRegistryDao.updatePrimaryThumbnailPath(row.id, best)
+            }
         }
+    }
+
+    private fun pixelArea(path: String): Long {
+        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(path, opts)
+        return opts.outWidth.toLong() * opts.outHeight
     }
 
     suspend fun rankScannedOnDeviceIdentitiesByCosine(

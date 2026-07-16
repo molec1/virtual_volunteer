@@ -1,6 +1,5 @@
 package com.virtualvolunteer.app.ui.util
 
-import com.virtualvolunteer.app.data.model.RaceStatus
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.ZoneId
@@ -49,5 +48,4 @@ object RaceUiFormatter {
         return String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
     }
 
-    fun formatStatus(status: RaceStatus): String = status.name
 }

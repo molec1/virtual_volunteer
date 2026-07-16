@@ -14,8 +14,10 @@ data class ParticipantEmbeddingPreviewRow(
     val raceId: String,
     val sourceType: EmbeddingSourceType,
     val createdAtEpochMillis: Long,
-    /** Best-effort preview path; file may be missing. */
+    /** Full-frame source photo for the photo viewer (face-box annotation works best here). */
     val previewPhotoPath: String?,
+    /** Face crop for the small list thumbnail; null when no crop is stored yet. */
+    val faceCropPath: String?,
     val raceLabelShort: String,
 )
 
@@ -42,6 +44,7 @@ internal class ParticipantFaceDataMutations(
                         sourceType = e.sourceType,
                         createdAtEpochMillis = e.createdAtEpochMillis,
                         previewPhotoPath = resolvePreviewPath(e.sourcePhotoPath, p),
+                        faceCropPath = p.faceThumbnailPath?.takeIf { fileExists(it) },
                         raceLabelShort = raceShort,
                     ),
                 )

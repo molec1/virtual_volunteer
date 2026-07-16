@@ -17,10 +17,9 @@ import com.virtualvolunteer.app.ui.util.PreviewImageLoader
 import com.virtualvolunteer.app.ui.util.RaceUiFormatter
 import java.io.File
 
-/** Short human-readable label for a participant row: name, scan code, or fallback ID. */
+/** Short human-readable label for a participant row: scan code or fallback ID. */
 internal fun ParticipantDashboardRow.displayLabel(): String =
-    displayName?.trim()?.takeIf { it.isNotEmpty() }
-        ?: scannedPayload?.trim()?.takeIf { it.isNotEmpty() }
+    scannedPayload?.trim()?.takeIf { it.isNotEmpty() }
         ?: "#$participantId"
 
 /**
@@ -33,7 +32,6 @@ internal fun ParticipantDashboardRow.displayLabel(): String =
 class ParticipantDashboardAdapter(
     private val onScanCode: (participantId: Long) -> Unit,
     private val onRemove: (participantId: Long) -> Unit,
-    private val onEditDisplayName: (participantId: Long, currentName: String?) -> Unit,
     private val onOpenPhotos: (participantId: Long) -> Unit,
     private val onFaceLookup: (participantId: Long) -> Unit,
 ) : ListAdapter<ParticipantDashboardRow, ParticipantDashboardAdapter.VH>(DIFF) {
@@ -68,7 +66,7 @@ class ParticipantDashboardAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val inflater = LayoutInflater.from(parent.context)
         val binding = ParticipantDashboardRowBinding.inflate(inflater, parent, false)
-        return VH(binding, onScanCode, onRemove, onEditDisplayName, onOpenPhotos, onFaceLookup)
+        return VH(binding, onScanCode, onRemove, onOpenPhotos, onFaceLookup)
     }
 
     override fun onBindViewHolder(holder: VH, position: Int) {
@@ -95,7 +93,6 @@ class ParticipantDashboardAdapter(
         private val binding: ParticipantDashboardRowBinding,
         private val onScanCode: (Long) -> Unit,
         private val onRemove: (Long) -> Unit,
-        private val onEditDisplayName: (Long, String?) -> Unit,
         private val onOpenPhotos: (Long) -> Unit,
         private val onFaceLookup: (Long) -> Unit,
     ) : RecyclerView.ViewHolder(binding.root) {
@@ -129,11 +126,9 @@ class ParticipantDashboardAdapter(
                 binding.participantRank.visibility = View.GONE
             }
 
-            val nameTrim = row.displayName?.trim()?.takeIf { it.isNotEmpty() }
-            binding.participantName.text = nameTrim
-                ?: binding.root.context.getString(R.string.participant_tap_to_name)
-
             val scanTrim = row.scannedPayload?.trim()?.takeIf { it.isNotEmpty() }
+            binding.participantName.text = scanTrim ?: ""
+
             val info = registryInfoWithoutRedundantScan(row.registryInfo, scanTrim)
             if (!info.isNullOrBlank()) {
                 binding.participantRegistryInfo.visibility = View.VISIBLE
@@ -169,20 +164,9 @@ class ParticipantDashboardAdapter(
                 }
             }
 
-            val showScanLine = scanTrim != null && scanTrim != nameTrim
-            if (showScanLine) {
-                binding.participantScanCode.visibility = View.VISIBLE
-                binding.participantScanCode.text = scanTrim
-            } else {
-                binding.participantScanCode.visibility = View.GONE
-            }
-
             binding.participantThumb.isClickable = true
             binding.participantThumb.setOnClickListener { onOpenPhotos(row.participantId) }
 
-            binding.participantName.setOnClickListener {
-                onEditDisplayName(row.participantId, row.displayName)
-            }
             binding.btnFaceLookup.setOnClickListener { onFaceLookup(row.participantId) }
             binding.btnScanCode.setOnClickListener { onScanCode(row.participantId) }
             binding.btnRemoveParticipant.setOnClickListener { onRemove(row.participantId) }

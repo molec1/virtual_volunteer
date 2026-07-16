@@ -1,8 +1,12 @@
 package com.virtualvolunteer.app.ui.identity
 
+import android.graphics.Typeface
+import android.text.SpannableStringBuilder
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -35,8 +39,7 @@ class IdentityRegistryAdapter(
         private val binding: ItemIdentityRegistryRowBinding,
         private val onItemClick: (Long) -> Unit,
         private val onDeleteClick: (Long) -> Unit,
-    ) :
-        RecyclerView.ViewHolder(binding.root) {
+    ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(row: IdentityRegistryEntity) {
             binding.registryRowMain.setOnClickListener { onItemClick(row.id) }
@@ -44,27 +47,40 @@ class IdentityRegistryAdapter(
 
             val thumbPath = row.primaryThumbnailPhotoPath?.takeIf { File(it).exists() }
             if (!thumbPath.isNullOrBlank()) {
-                val bmp = PreviewImageLoader.loadThumbnailOrientedInset(thumbPath, maxSidePx = 256)
+                val bmp = PreviewImageLoader.loadThumbnailOrientedInset(thumbPath, maxSidePx = 512)
                 binding.registryThumb.setImageBitmap(bmp)
+                if (bmp != null) {
+                    binding.registryThumb.background = null
+                } else {
+                    binding.registryThumb.setBackgroundResource(R.drawable.bg_placeholder_photo)
+                }
             } else {
                 binding.registryThumb.setImageBitmap(null)
                 binding.registryThumb.setBackgroundResource(R.drawable.bg_placeholder_photo)
             }
 
-            binding.registryIdText.text =
-                binding.root.context.getString(R.string.identity_registry_id_fmt, row.id)
-
+            val ctx = binding.root.context
+            val idLabel = ctx.getString(R.string.identity_registry_id_fmt, row.id)
             val scan = row.scannedPayload?.trim()?.takeIf { it.isNotEmpty() }
-            binding.registryScanText.text =
-                scan ?: binding.root.context.getString(R.string.identity_registry_no_scan)
+                ?: ctx.getString(R.string.identity_registry_no_scan)
 
-            val notes = row.notes?.trim()?.takeIf { it.isNotEmpty() }
-            if (notes != null) {
-                binding.registryNotesText.visibility = View.VISIBLE
-                binding.registryNotesText.text = notes
-            } else {
-                binding.registryNotesText.visibility = View.GONE
-            }
+            // "#N  code" with #N in accent_pink bold
+            val ssb = SpannableStringBuilder()
+            val idEnd = idLabel.length
+            ssb.append(idLabel)
+            ssb.setSpan(
+                ForegroundColorSpan(ContextCompat.getColor(ctx, R.color.accent_pink)),
+                0, idEnd,
+                SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+            ssb.setSpan(
+                StyleSpan(Typeface.BOLD),
+                0, idEnd,
+                SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+            ssb.append("  ")
+            ssb.append(scan)
+            binding.registryIdText.text = ssb
 
             binding.registryCreatedText.text = RaceUiFormatter.formatDateTime(row.createdAtEpochMillis)
         }

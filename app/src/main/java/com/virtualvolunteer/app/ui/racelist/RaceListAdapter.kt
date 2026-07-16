@@ -48,7 +48,6 @@ class RaceListAdapter(
             val gen = ++bindGeneration
             binding.raceDate.text = RaceUiFormatter.formatDate(item.createdAtEpochMillis)
             binding.raceTime.text = RaceUiFormatter.formatTime(item.createdAtEpochMillis)
-            binding.raceStatus.text = RaceUiFormatter.formatStatus(item.status)
             binding.raceRowMain.setOnClickListener { onOpen(item) }
             binding.raceStartThumb.setOnClickListener { onOpen(item) }
             binding.btnDeleteRace.setOnClickListener { onDelete(item) }

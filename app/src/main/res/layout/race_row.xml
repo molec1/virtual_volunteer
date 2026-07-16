@@ -12,17 +12,17 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="@dimen/card_padding">
+        android:padding="10dp">
 
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/raceStartThumb"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
+            android:layout_width="74dp"
+            android:layout_height="74dp"
             android:layout_gravity="center_vertical"
-            android:layout_marginEnd="@dimen/section_spacing_medium"
+            android:layout_marginEnd="12dp"
             android:background="@drawable/bg_placeholder_photo"
             android:contentDescription="@string/race_list_start_thumb_cd"
-            android:padding="@dimen/face_thumb_inner_padding"
+            android:padding="2dp"
             android:scaleType="centerCrop"
             android:visibility="gone"
             app:shapeAppearanceOverlay="@style/ShapeAppearance.VirtualVolunteer.RoundedThumb"
@@ -53,18 +53,6 @@
                 android:paddingTop="4dp"
                 android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
                 tools:text="14:32:10" />
-
-            <TextView
-                android:id="@+id/raceStatus"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="4dp"
-                android:background="@android:color/transparent"
-                android:textAppearance="@style/TextAppearance.VirtualVolunteer.Caption"
-                android:textColor="@color/secondary_ui"
-                tools:text="CREATED" />
         </LinearLayout>
 
         <ImageButton
