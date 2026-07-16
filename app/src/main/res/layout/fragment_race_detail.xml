@@ -205,6 +205,45 @@
                     android:paddingHorizontal="6dp"
                     android:paddingBottom="@dimen/card_padding">
 
+                    <!-- Shown when no finishes exist yet -->
+                    <LinearLayout
+                        android:id="@+id/protocolEmptyHint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingTop="20dp"
+                        android:paddingBottom="20dp"
+                        android:visibility="gone"
+                        tools:visibility="visible">
+
+                        <ImageView
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:alpha="0.28"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_finish_tick"
+                            app:tint="@color/text_secondary" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:gravity="center"
+                            android:text="@string/protocol_empty_hint"
+                            android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel"
+                            android:textColor="@color/text_secondary" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:gravity="center"
+                            android:text="@string/protocol_empty_sub"
+                            android:textAppearance="@style/TextAppearance.VirtualVolunteer.Caption" />
+
+                    </LinearLayout>
+
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/participantsRecycler"
                         android:layout_width="match_parent"

@@ -9,6 +9,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.virtualvolunteer.app.VirtualVolunteerApp
 import com.virtualvolunteer.app.databinding.BottomSheetRaceParticipantPhotosBinding
+import com.virtualvolunteer.app.ui.util.RaceUiFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -65,9 +66,10 @@ class RaceParticipantPhotosBottomSheet : BottomSheetDialogFragment() {
                 }
                 binding.sheetSubtitle.text = buildString {
                     append(participant?.scannedPayload?.takeIf { it.isNotBlank() } ?: "#${participant?.id}")
-                    append(" (")
-                    append(race?.id?.take(8) ?: "Unknown Race")
-                    append(")")
+                    race?.createdAtEpochMillis?.let {
+                        append(" · ")
+                        append(RaceUiFormatter.formatDateReadable(it))
+                    }
                 }
                 photoAdapter.submitList(photos)
             }

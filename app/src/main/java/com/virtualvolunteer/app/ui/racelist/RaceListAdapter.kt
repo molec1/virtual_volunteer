@@ -32,7 +32,8 @@ class RaceListAdapter(
     }
 
     override fun onBindViewHolder(holder: VH, position: Int) {
-        holder.bind(getItem(position))
+        val prev = if (position > 0) getItem(position - 1) else null
+        holder.bind(getItem(position), prev)
     }
 
     class VH(
@@ -44,10 +45,17 @@ class RaceListAdapter(
 
         private var bindGeneration: Int = 0
 
-        fun bind(item: RaceEntity) {
+        fun bind(item: RaceEntity, prevItem: RaceEntity?) {
             val gen = ++bindGeneration
-            binding.raceDate.text = RaceUiFormatter.formatDate(item.createdAtEpochMillis)
-            binding.raceTime.text = RaceUiFormatter.formatTime(item.createdAtEpochMillis)
+            val sameYearAsPrev = prevItem != null &&
+                RaceUiFormatter.calendarYear(item.createdAtEpochMillis) ==
+                RaceUiFormatter.calendarYear(prevItem.createdAtEpochMillis)
+            binding.raceDate.text = if (sameYearAsPrev) {
+                RaceUiFormatter.formatDateShort(item.createdAtEpochMillis)
+            } else {
+                RaceUiFormatter.formatDateReadable(item.createdAtEpochMillis)
+            }
+            binding.raceTime.text = RaceUiFormatter.formatTimeShort(item.createdAtEpochMillis)
             binding.raceRowMain.setOnClickListener { onOpen(item) }
             binding.raceStartThumb.setOnClickListener { onOpen(item) }
             binding.btnDeleteRace.setOnClickListener { onDelete(item) }

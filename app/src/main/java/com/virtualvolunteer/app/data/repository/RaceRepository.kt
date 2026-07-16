@@ -117,6 +117,7 @@ class RaceRepository(
         participantHashDao,
         participantEmbeddingDao,
         identityRegistryDao,
+        raceDao,
         embeddingWriter,
         protocolFinish,
     )

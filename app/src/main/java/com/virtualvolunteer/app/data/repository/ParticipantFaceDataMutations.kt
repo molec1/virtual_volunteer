@@ -4,7 +4,9 @@ import com.virtualvolunteer.app.data.local.EmbeddingSourceType
 import com.virtualvolunteer.app.data.local.IdentityRegistryDao
 import com.virtualvolunteer.app.data.local.ParticipantEmbeddingDao
 import com.virtualvolunteer.app.data.local.ParticipantHashDao
+import com.virtualvolunteer.app.data.local.RaceDao
 import com.virtualvolunteer.app.data.local.RaceParticipantHashEntity
+import com.virtualvolunteer.app.ui.util.RaceUiFormatter
 import java.io.File
 
 /** One stored embedding row for participant-detail previews (may span linked protocol rows). */
@@ -25,6 +27,7 @@ internal class ParticipantFaceDataMutations(
     private val participantHashDao: ParticipantHashDao,
     private val participantEmbeddingDao: ParticipantEmbeddingDao,
     private val identityRegistryDao: IdentityRegistryDao,
+    private val raceDao: RaceDao,
     private val embeddingWriter: RaceParticipantEmbeddingWriter,
     private val protocolFinish: RaceProtocolFinishSync,
 ) {
@@ -34,7 +37,9 @@ internal class ParticipantFaceDataMutations(
         val hashRows = linkedParticipantRowsSuspend(seed)
         val out = ArrayList<ParticipantEmbeddingPreviewRow>()
         for (p in hashRows) {
-            val raceShort = p.raceId.take(8)
+            val raceDate = raceDao.getRace(p.raceId)?.createdAtEpochMillis
+                ?.let { RaceUiFormatter.formatDateReadable(it) }
+                ?: p.raceId.take(8)
             for (e in participantEmbeddingDao.listForParticipant(p.id)) {
                 out.add(
                     ParticipantEmbeddingPreviewRow(
@@ -45,7 +50,7 @@ internal class ParticipantFaceDataMutations(
                         createdAtEpochMillis = e.createdAtEpochMillis,
                         previewPhotoPath = resolvePreviewPath(e.sourcePhotoPath, p),
                         faceCropPath = p.faceThumbnailPath?.takeIf { fileExists(it) },
-                        raceLabelShort = raceShort,
+                        raceLabelShort = raceDate,
                     ),
                 )
             }

@@ -10,11 +10,15 @@ internal object RaceDetailParticipantSectionUi {
         finishRecordCount: Int,
         participantsExpanded: Boolean,
     ) {
-        val showProtocol = participantRowCount > 0 || finishRecordCount > 0
+        val hasEntries = participantRowCount > 0 || finishRecordCount > 0
+        // Section title is always visible when expanded so the card is never truly bare
         binding.dashboardParticipantsTitle.visibility =
-            if (showProtocol && participantsExpanded) View.VISIBLE else View.GONE
+            if (participantsExpanded) View.VISIBLE else View.GONE
+        // Empty-state placeholder when the protocol has no rows yet
+        binding.protocolEmptyHint.visibility =
+            if (participantsExpanded && !hasEntries) View.VISIBLE else View.GONE
         binding.participantsRecycler.visibility =
-            if (showProtocol && participantsExpanded) View.VISIBLE else View.GONE
+            if (participantsExpanded && hasEntries) View.VISIBLE else View.GONE
         binding.scrollContent.post {
             binding.participantsRecycler.requestLayout()
         }

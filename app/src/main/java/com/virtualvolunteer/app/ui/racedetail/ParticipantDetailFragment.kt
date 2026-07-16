@@ -303,13 +303,7 @@ private class ParticipantRaceAdapter(
             binding.root.setOnClickListener {
                 onClick(summary.raceId, summary.participantHashId)
             }
-            binding.raceTitle.text = buildString {
-                append("Race ")
-                append(summary.raceId.take(8))
-                append("… (")
-                append(RaceUiFormatter.formatDate(summary.raceCreatedAtMillis))
-                append(")")
-            }
+            binding.raceTitle.text = RaceUiFormatter.formatDateReadable(summary.raceCreatedAtMillis)
             binding.raceFinishTime.text = summary.protocolFinishTimeEpochMillis?.let {
                 binding.root.context.getString(R.string.participant_finish_fmt, RaceUiFormatter.formatTime(it)) + " " +
                     summary.finishRank?.let { " (#$it)" }.orEmpty()

@@ -33,6 +33,7 @@
             android:id="@+id/raceRowMain"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
             android:layout_weight="1"
             android:background="?attr/selectableItemBackground"
             android:clickable="true"
@@ -44,22 +45,22 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textAppearance="@style/TextAppearance.VirtualVolunteer.Title"
-                tools:text="2026-04-18" />
+                tools:text="18 Apr 2026" />
 
             <TextView
                 android:id="@+id/raceTime"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingTop="4dp"
-                android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
-                tools:text="14:32:10" />
+                android:paddingTop="5dp"
+                android:textAppearance="@style/TextAppearance.VirtualVolunteer.TitleMedium"
+                tools:text="14:32" />
         </LinearLayout>
 
         <ImageButton
             android:id="@+id/btnDeleteRace"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:layout_gravity="center_vertical"
+            android:layout_gravity="bottom"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/btn_delete_race_cd"
             android:padding="10dp"
