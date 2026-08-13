@@ -12,6 +12,7 @@ import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.VirtualVolunteerApp
 import com.virtualvolunteer.app.data.local.RaceEntity
 import com.virtualvolunteer.app.databinding.RaceRowBinding
+import com.virtualvolunteer.app.ui.util.CardShadowStyler
 import com.virtualvolunteer.app.ui.util.PreviewImageLoader
 import com.virtualvolunteer.app.ui.util.RaceUiFormatter
 import kotlinx.coroutines.CoroutineScope
@@ -28,6 +29,7 @@ class RaceListAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val inflater = LayoutInflater.from(parent.context)
         val binding = RaceRowBinding.inflate(inflater, parent, false)
+        CardShadowStyler.applySoftShadow(binding.root)
         return VH(binding, imageLoadScope, onOpen, onDelete)
     }
 

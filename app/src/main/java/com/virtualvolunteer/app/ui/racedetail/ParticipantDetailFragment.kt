@@ -23,6 +23,7 @@ import com.virtualvolunteer.app.data.repository.RaceRepository
 import com.virtualvolunteer.app.databinding.FragmentParticipantDetailBinding
 import com.virtualvolunteer.app.databinding.ItemParticipantDetailRaceRowBinding
 import com.virtualvolunteer.app.databinding.ItemParticipantEmbeddingPreviewBinding
+import com.virtualvolunteer.app.ui.util.EdgeToEdgeInsets
 import com.virtualvolunteer.app.ui.util.PreviewImageLoader
 import com.virtualvolunteer.app.ui.util.RaceUiFormatter
 import kotlinx.coroutines.Dispatchers
@@ -50,6 +51,10 @@ class ParticipantDetailFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        EdgeToEdgeInsets.applyStatusBarPadding(binding.participantDetailHeader)
+        EdgeToEdgeInsets.applyNavigationBarPadding(binding.scrollContent)
+        binding.btnBack.setOnClickListener { findNavController().popBackStack() }
 
         val app = requireActivity().application as VirtualVolunteerApp
         val repo = app.raceRepository
@@ -139,11 +144,11 @@ class ParticipantDetailFragment : Fragment() {
     }
 
     private fun bindParticipantHeader(participant: RaceParticipantHashEntity, registryThumb: String?) {
-        binding.participantDetailName.text =
-            participant.scannedPayload?.takeIf { it.isNotBlank() } ?: "#${participant.id}"
+        // The scanned code is the primary identity for this screen, so it becomes the page
+        // title itself (e.g. "A770012987") instead of being repeated inside the profile card.
+        binding.participantDetailTitle.text =
+            participant.scannedPayload?.takeIf { it.isNotBlank() } ?: getString(R.string.participant_detail_title)
         binding.participantDetailId.text = getString(R.string.participant_detail_protocol_id, participant.id)
-        binding.participantDetailScanCode.text =
-            participant.scannedPayload?.let { "Scan: $it" } ?: getString(R.string.identity_registry_no_scan)
 
         // Prefer the registry's best-quality crop; fall back to the participant row's own paths.
         val thumbPath = sequenceOf(

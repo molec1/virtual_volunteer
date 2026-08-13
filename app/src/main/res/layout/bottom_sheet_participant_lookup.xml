@@ -6,7 +6,9 @@
     android:layout_height="wrap_content"
     android:background="@color/surface_white"
     android:orientation="vertical"
-    android:padding="@dimen/screen_horizontal_padding">
+    android:paddingHorizontal="@dimen/screen_horizontal_padding"
+    android:paddingTop="@dimen/section_spacing_medium"
+    android:paddingBottom="@dimen/section_spacing_large">
 
     <TextView
         android:id="@+id/lookupSheetTitle"
@@ -23,32 +25,38 @@
         android:layout_marginTop="@dimen/section_spacing_medium"
         android:text="@string/participant_lookup_select_photo" />
 
-    <FrameLayout
+    <com.google.android.material.card.MaterialCardView
+        style="@style/Widget.VirtualVolunteer.Card.Nested"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/section_spacing_medium"
-        android:minHeight="120dp">
+        android:layout_marginTop="@dimen/section_spacing_medium">
 
-        <ImageView
-            android:id="@+id/lookupPhotoPreview"
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:adjustViewBounds="true"
-            android:background="@drawable/bg_placeholder_photo"
-            android:contentDescription="@string/participant_lookup_select_photo"
-            android:maxHeight="240dp"
-            android:scaleType="fitCenter"
-            tools:ignore="ImageContrastCheck" />
+            android:minHeight="120dp">
 
-        <TextView
-            android:id="@+id/lookupPhotoEmptyHint"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:padding="16dp"
-            android:text="@string/participant_lookup_empty"
-            android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta" />
-    </FrameLayout>
+            <ImageView
+                android:id="@+id/lookupPhotoPreview"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:adjustViewBounds="true"
+                android:background="@drawable/bg_placeholder_photo"
+                android:contentDescription="@string/participant_lookup_select_photo"
+                android:maxHeight="240dp"
+                android:scaleType="fitCenter"
+                tools:ignore="ImageContrastCheck" />
+
+            <TextView
+                android:id="@+id/lookupPhotoEmptyHint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:padding="16dp"
+                android:text="@string/participant_lookup_empty"
+                android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta" />
+        </FrameLayout>
+    </com.google.android.material.card.MaterialCardView>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/lookupResultsRecycler"

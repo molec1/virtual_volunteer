@@ -4,24 +4,62 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background_light">
+    android:background="@drawable/bg_screen_gradient">
+
+    <!-- Fixed edge-to-edge header: back button + large page title -->
+    <LinearLayout
+        android:id="@+id/identityRegistryHeader"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/screen_title_horizontal_padding"
+        android:paddingTop="@dimen/screen_title_top_padding"
+        android:paddingEnd="@dimen/screen_title_horizontal_padding"
+        android:paddingBottom="8dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnBack"
+            style="@style/Widget.VirtualVolunteer.IconButton.Tonal"
+            android:layout_width="@dimen/min_touch_target"
+            android:layout_height="@dimen/min_touch_target"
+            android:layout_marginEnd="12dp"
+            android:contentDescription="@string/action_back_cd"
+            app:icon="@drawable/ic_arrow_back" />
+
+        <TextView
+            android:id="@+id/identityRegistryTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/identity_registry_title"
+            android:textAppearance="@style/TextAppearance.VirtualVolunteer.PageTitle" />
+    </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/registryRecycler"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:clipChildren="false"
         android:clipToPadding="false"
-        android:padding="@dimen/list_content_padding"
+        android:paddingHorizontal="@dimen/list_content_padding"
+        android:paddingTop="@dimen/list_content_padding"
+        android:paddingBottom="8dp"
         app:layoutManager="androidx.recyclerview.widget.GridLayoutManager"
         app:layout_constraintBottom_toTopOf="@+id/registryJsonActions"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/identityRegistryHeader"
         tools:listitem="@layout/item_identity_registry_row" />
 
     <TextView
         android:id="@+id/emptyView"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:gravity="center"
         android:padding="@dimen/section_spacing_large"
@@ -31,23 +69,25 @@
         app:layout_constraintBottom_toTopOf="@+id/registryJsonActions"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/identityRegistryHeader" />
 
     <LinearLayout
         android:id="@+id/registryJsonActions"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:background="@color/surface_white"
+        android:elevation="2dp"
         android:orientation="horizontal"
         android:paddingHorizontal="@dimen/screen_horizontal_padding"
-        android:paddingTop="8dp"
-        android:paddingBottom="12dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="16dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnExportParticipantsJson"
-            style="@style/Widget.VirtualVolunteer.Button.Secondary"
+            style="@style/Widget.VirtualVolunteer.Button.Outlined"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -58,8 +98,8 @@
             style="@style/Widget.VirtualVolunteer.Button.Secondary"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
             android:layout_weight="1"
-            android:layout_marginStart="8dp"
             android:text="@string/btn_import_participants_json" />
     </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

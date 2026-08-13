@@ -1,15 +1,60 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Palette (exact values — do not substitute) -->
+    <!-- Brand (exact values — do not substitute) -->
     <color name="purple_primary">#3B245A</color>
     <color name="purple_primary_dark">#2F1E4A</color>
     <color name="purple_primary_light">#4A2E70</color>
     <color name="accent_pink">#E91E63</color>
-    <color name="background_light">#F5F5F7</color>
-    <color name="surface_white">#FFFFFF</color>
-    <color name="text_primary">#1C1C1E</color>
-    <color name="text_secondary">#6B6B73</color>
     <color name="secondary_ui">#5E3A87</color>
 
+    <!-- Neutral surface system: warm white, never gray. Every "surface" tone below is either
+         pure white or white with a small, fixed amount of Primary Purple mixed in (~1% for
+         secondary surfaces, ~3% for the more prominent "high" container) — never a neutral gray
+         mix — so cards read as illuminated white rather than flat/cool, closer to Pixel-style
+         Material surfaces. Brand colors (toolbar purple, accent pink, icon tints) are untouched. -->
+    <color name="background_light">#F8F6FD</color>
+    <color name="background_gradient_tint">#FFFFFF</color>
+    <!-- Primary surfaces (cards): pure white. -->
+    <color name="surface_white">#FFFFFF</color>
+    <!-- Secondary surfaces: white + Primary Purple at ~1% opacity. -->
+    <color name="surface_container">#FDFBFF</color>
+    <!-- Elevated/high containers: white + Primary Purple at ~3% opacity. -->
+    <color name="surface_container_high">#F9F8FA</color>
+    <!-- Highest container (menus, search bars): white + Primary Purple at ~5% opacity. -->
+    <color name="surface_container_highest">#F5F4F7</color>
+
+    <!-- Soft ambient shadow tint (brand-tinted, low alpha) — wide/blurred/subtle rather than
+         a hard black drop shadow. Ambient is fainter (all-around glow), spot is a touch
+         stronger (directional component). API 28+ only; below that, plain elevation is used. -->
+    <color name="shadow_ambient_soft">#1F3B245A</color>
+    <color name="shadow_spot_soft">#333B245A</color>
+
+    <!-- Soft all-around "rim light" stroke on cards, approximating a top highlight without
+         relying on a gradient overlay that would clash with rounded-corner clipping. -->
+    <color name="card_rim_highlight">#33FFFFFF</color>
+
+
+    <!-- Accent containers (tonal buttons / soft highlights — same pink family) -->
+    <color name="accent_pink_container">#FFD9E4</color>
+    <color name="accent_pink_container_soft">#40E91E63</color>
+    <color name="accent_pink_on_container">#3F0018</color>
+    <color name="purple_container">#EADDFF</color>
+    <color name="purple_on_container">#21005D</color>
+
+    <!-- Text -->
+    <color name="text_primary">#1C1B1F</color>
+    <color name="text_secondary">#6B6670</color>
+    <color name="outline_soft">#CBC4CF</color>
+
     <color name="white">#FFFFFF</color>
+    <color name="scrim_soft">#66000000</color>
+
+    <!-- Camera viewfinder overlay: a brand-tinted dark plum scrim instead of flat black, so the
+         in-app camera screen (bottom control panel, lens-select chip) reads as part of this app
+         rather than a generic/system camera UI. Kept dark+opaque enough to stay legible over any
+         video content. -->
+    <color name="camera_overlay_scrim">#E62F1E4A</color>
+
+    <!-- Launcher adaptive-icon background (matches icon plate) -->
+    <color name="ic_launcher_background">#FFFFFF</color>
 </resources>

@@ -5,6 +5,8 @@
     <string name="fab_participants_label">Participants</string>
     <string name="empty_races">No races yet. Tap \"Start new race\".</string>
     <string name="race_detail_title">Event</string>
+    <string name="action_back_cd">Back</string>
+    <string name="participant_detail_title">Participant details</string>
     <string name="race_detail_section_export">Export</string>
 
 
@@ -30,8 +32,7 @@
     <string name="import_device_identities_done">Import: %1$d new, %2$d updated, %3$d face vectors from file, %4$d file vectors skipped (registry face already set), %5$d skipped or malformed rows</string>
     <string name="import_device_identities_failed">Scanned identities import failed</string>
     <string name="share_csv_chooser_title">Share CSV</string>
-    <string name="timer_label">Elapsed</string>
-    <string name="race_start_time_label">Race start</string>
+    <string name="race_start_time_label">Event start</string>
     <string name="race_start_time_not_set">Not set</string>
     <string name="race_start_time_edit_cd">Edit race start time</string>
     <string name="race_start_time_clock_dialog_title">Start time (24 h)</string>
@@ -88,7 +89,7 @@
     <string name="participant_photos_empty">No image files found for this participant.</string>
     <string name="participant_photo_tile_cd">Participant photo</string>
     <string name="finish_photo_badge_cd">Finish photo</string>
-    <string name="identity_registry_title">Local Participants storage</string>
+    <string name="identity_registry_title">Participants</string>
     <string name="identity_registry_empty">No identities with a scanned code yet. Scan a participant in a race, or match a start photo to the registry.</string>
     <string name="identity_registry_open_detail_failed">No race participant linked yet. Take a start photo first.</string>
     <string name="identity_registry_id_fmt">#%1$d</string>
@@ -174,7 +175,7 @@
     <string name="race_event_photo_delete_failed">Could not delete photo</string>
     <string name="race_event_photo_load_failed">Could not load image</string>
     <string name="photo_counter">%1$d / %2$d</string>
-    <string name="merge_participants_title">Объединить участников?</string>
-    <string name="merge_participants_message">«%1$s» будет объединён с «%2$s». Время финиша и данные о лице перейдут на оставшуюся запись.</string>
-    <string name="merge_participants_confirm">Объединить</string>
+    <string name="merge_participants_title">Merge participants?</string>
+    <string name="merge_participants_message">\"%1$s\" will be merged with \"%2$s\". The finish time and face data will move to the remaining entry.</string>
+    <string name="merge_participants_confirm">Merge</string>
 </resources>

@@ -22,6 +22,7 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
@@ -29,6 +30,7 @@ import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.VirtualVolunteerApp
 import com.virtualvolunteer.app.databinding.FragmentCameraCaptureBinding
 import com.virtualvolunteer.app.domain.RacePhotoProcessor
+import com.virtualvolunteer.app.ui.util.EdgeToEdgeInsets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -119,6 +121,10 @@ class CameraCaptureFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         cameraExecutor = Executors.newSingleThreadExecutor()
+        EdgeToEdgeInsets.applyNavigationBarPadding(binding.cameraControls)
+        // The lens-select chip is pinned to the top-start of a full-bleed, edge-to-edge preview;
+        // without this it renders under the status bar / camera cutout and becomes unreachable.
+        EdgeToEdgeInsets.applyStatusBarMargin(binding.btnLensSelect)
 
         requireActivity().onBackPressedDispatcher.addCallback(
             viewLifecycleOwner,
@@ -208,6 +214,11 @@ class CameraCaptureFragment : Fragment() {
         }
         host.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         orientationListener?.takeIf { it.canDetectOrientation() }?.enable()
+        // Full-bleed black viewfinder: switch system bar icons to light so they stay visible.
+        WindowInsetsControllerCompat(host.window, binding.root).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
     }
 
     override fun onPause() {
@@ -216,6 +227,12 @@ class CameraCaptureFragment : Fragment() {
         val prev = previousRequestedOrientation
         if (host != null && prev != null) {
             host.requestedOrientation = prev
+        }
+        if (host != null) {
+            WindowInsetsControllerCompat(host.window, host.window.decorView).apply {
+                isAppearanceLightStatusBars = true
+                isAppearanceLightNavigationBars = true
+            }
         }
         super.onPause()
     }
@@ -344,7 +361,14 @@ class CameraCaptureFragment : Fragment() {
         camera.cameraInfo.zoomState.observe(viewLifecycleOwner) { zoomState ->
             if (cameraOptions.size >= 2) return@observe
             val maxZoom = zoomState?.maxZoomRatio ?: return@observe
-            val synthetic = RearCameraSelector.buildZoomOptions(cameraOptions, maxZoom)
+            // Prefer the device's real physical-lens crossover ratios (e.g. main→telephoto) over
+            // an arbitrary 1×/2×/5× ladder, so tapping a zoom option has the best chance of
+            // triggering a genuine optical lens switch instead of a purely digital crop.
+            val physicalRatios = runCatching {
+                val logicalId = androidx.camera.camera2.interop.Camera2CameraInfo.from(camera.cameraInfo).cameraId
+                RearCameraSelector.physicalLensZoomRatios(requireContext(), logicalId)
+            }.getOrDefault(emptyList())
+            val synthetic = RearCameraSelector.buildZoomOptions(cameraOptions, maxZoom, physicalRatios)
             if (synthetic.size < 2) return@observe
             cameraOptions = synthetic
             selectedCameraIndex = 0

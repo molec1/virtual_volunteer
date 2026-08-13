@@ -13,6 +13,7 @@ import com.google.android.material.card.MaterialCardView
 import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.data.local.ParticipantDashboardRow
 import com.virtualvolunteer.app.databinding.ParticipantDashboardRowBinding
+import com.virtualvolunteer.app.ui.util.CardShadowStyler
 import com.virtualvolunteer.app.ui.util.PreviewImageLoader
 import com.virtualvolunteer.app.ui.util.RaceUiFormatter
 import java.io.File
@@ -66,6 +67,7 @@ class ParticipantDashboardAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val inflater = LayoutInflater.from(parent.context)
         val binding = ParticipantDashboardRowBinding.inflate(inflater, parent, false)
+        CardShadowStyler.applySoftShadow(binding.root)
         return VH(binding, onScanCode, onRemove, onOpenPhotos, onFaceLookup)
     }
 

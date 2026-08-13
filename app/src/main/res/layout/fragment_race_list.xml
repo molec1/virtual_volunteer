@@ -3,60 +3,70 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background_light">
+    android:background="@drawable/bg_screen_gradient">
+
+    <TextView
+        android:id="@+id/raceListTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:paddingTop="@dimen/screen_title_top_padding"
+        android:paddingStart="@dimen/screen_title_horizontal_padding"
+        android:paddingEnd="@dimen/screen_title_horizontal_padding"
+        android:text="@string/app_name"
+        android:textAppearance="@style/TextAppearance.VirtualVolunteer.PageTitle"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/raceRecycler"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:clipChildren="false"
         android:clipToPadding="false"
-        android:padding="@dimen/list_content_padding"
+        android:paddingTop="@dimen/section_spacing_medium"
+        android:paddingBottom="160dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/raceListTitle" />
 
     <TextView
         android:id="@+id/emptyView"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:gravity="center"
-        android:padding="@dimen/section_spacing_large"
+        android:paddingHorizontal="@dimen/section_spacing_large"
+        android:paddingVertical="@dimen/section_spacing_large"
         android:text="@string/empty_races"
         android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/raceListTitle" />
 
     <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
         android:id="@+id/fabNewRace"
+        style="@style/Widget.VirtualVolunteer.ExtendedFab"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/screen_horizontal_padding"
         android:layout_marginBottom="@dimen/section_spacing_medium"
         android:text="@string/start_new_race"
-        android:textColor="@color/white"
-        app:backgroundTint="@color/accent_pink"
-        app:elevation="@dimen/fab_elevation"
-        app:icon="@android:drawable/ic_input_add"
-        app:iconTint="@color/white"
+        app:icon="@drawable/ic_add"
         app:layout_constraintBottom_toTopOf="@id/fabIdentityRegistry"
         app:layout_constraintEnd_toEndOf="parent" />
 
     <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
         android:id="@+id/fabIdentityRegistry"
+        style="@style/Widget.VirtualVolunteer.ExtendedFab.Secondary"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="@dimen/screen_horizontal_padding"
-        android:text="@string/fab_participants_label"
-        android:textColor="@color/white"
         android:contentDescription="@string/fab_identity_registry_cd"
-        app:backgroundTint="@color/accent_pink"
-        app:elevation="@dimen/fab_elevation"
-        app:icon="@android:drawable/ic_menu_myplaces"
-        app:iconTint="@color/white"
+        android:text="@string/fab_participants_label"
+        app:icon="@drawable/ic_people"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 </androidx.constraintlayout.widget.ConstraintLayout>

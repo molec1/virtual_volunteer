@@ -5,7 +5,7 @@
     style="@style/Widget.VirtualVolunteer.Card"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="@dimen/list_content_padding"
+    android:layout_marginBottom="@dimen/list_item_gap"
     android:clickable="true"
     android:focusable="true"
     android:foreground="?attr/selectableItemBackground">
@@ -13,17 +13,18 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
         android:padding="@dimen/card_padding">
 
-        <ImageView
+        <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/raceThumbnail"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:layout_gravity="center_vertical"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
             android:background="@drawable/bg_placeholder_photo"
             android:contentDescription="@string/race_detail_title"
             android:scaleType="centerCrop"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.VirtualVolunteer.RoundedThumb"
             tools:ignore="ImageContrastCheck" />
 
         <LinearLayout
@@ -37,7 +38,7 @@
                 android:id="@+id/raceTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textAppearance="@style/TextAppearance.VirtualVolunteer.Title"
+                android:textAppearance="@style/TextAppearance.VirtualVolunteer.TitleMedium"
                 tools:text="Race ID (2026-04-20)" />
 
             <TextView
@@ -53,8 +54,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel"
-                android:textStyle="bold"
+                android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
                 tools:text="Moving: 00:00" />
 
         </LinearLayout>

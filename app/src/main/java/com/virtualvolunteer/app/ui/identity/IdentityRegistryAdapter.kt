@@ -14,7 +14,6 @@ import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.data.local.IdentityRegistryEntity
 import com.virtualvolunteer.app.databinding.ItemIdentityRegistryRowBinding
 import com.virtualvolunteer.app.ui.util.PreviewImageLoader
-import com.virtualvolunteer.app.ui.util.RaceUiFormatter
 import java.io.File
 
 /**
@@ -81,8 +80,6 @@ class IdentityRegistryAdapter(
             ssb.append("  ")
             ssb.append(scan)
             binding.registryIdText.text = ssb
-
-            binding.registryCreatedText.text = RaceUiFormatter.formatDateTime(row.createdAtEpochMillis)
         }
     }
 

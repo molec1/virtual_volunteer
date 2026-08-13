@@ -1,62 +1,197 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Cards -->
+    <!-- Cards: soft float, crisp white surface, no hard border.
+         Elevation raised versus the original flat 6dp so the native shadow spreads wider and
+         reads as a soft ambient glow rather than a tight dark line. On API 28+ the shadow is
+         also tinted with a low-alpha brand-purple color (shadow_ambient_soft / shadow_spot_soft)
+         instead of default black, for a subtler, warmer shadow (re-attempted on Material
+         Components 1.12.0 — an earlier attempt on an older library version did not render
+         reliably on MaterialCardView; below API 28 it silently falls back to plain elevation).
+         A faint all-around "rim" stroke stands in for a top highlight — a literal gradient
+         overlay would poke past the rounded corners since MaterialCardView does not clip
+         arbitrary child content to its shape. -->
     <style name="Widget.VirtualVolunteer.Card" parent="Widget.Material3.CardView.Elevated">
         <item name="cardCornerRadius">@dimen/card_corner_radius</item>
         <item name="cardElevation">@dimen/card_elevation</item>
         <item name="cardBackgroundColor">@color/surface_white</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="strokeColor">@color/card_rim_highlight</item>
+        <item name="cardPreventCornerOverlap">true</item>
+        <item name="android:outlineAmbientShadowColor" tools:targetApi="28">@color/shadow_ambient_soft</item>
+        <item name="android:outlineSpotShadowColor" tools:targetApi="28">@color/shadow_spot_soft</item>
     </style>
 
-    <!-- Primary: accent fill, white label, pill -->
+    <!-- Nested / list cards inside a section (slightly tighter) -->
+    <style name="Widget.VirtualVolunteer.Card.Nested" parent="Widget.VirtualVolunteer.Card">
+        <item name="cardCornerRadius">20dp</item>
+        <item name="cardElevation">8dp</item>
+    </style>
+
+    <!-- Primary CTA: brand pink fill, pill -->
     <style name="Widget.VirtualVolunteer.Button.Primary" parent="Widget.Material3.Button">
         <item name="backgroundTint">@color/accent_pink</item>
         <item name="android:textColor">@color/white</item>
+        <item name="iconTint">@color/white</item>
         <item name="cornerRadius">@dimen/button_corner_full</item>
-        <item name="android:minHeight">48dp</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:letterSpacing">0.01</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="elevation">0dp</item>
+    </style>
+
+    <!-- Secondary: filled tonal (soft pink container) -->
+    <style name="Widget.VirtualVolunteer.Button.Secondary" parent="Widget.Material3.Button.TonalButton">
+        <item name="backgroundTint">@color/accent_pink_container</item>
+        <item name="android:textColor">@color/accent_pink_on_container</item>
+        <item name="iconTint">@color/accent_pink</item>
+        <item name="cornerRadius">@dimen/button_corner_full</item>
+        <item name="android:minHeight">52dp</item>
         <item name="android:insetTop">0dp</item>
         <item name="android:insetBottom">0dp</item>
     </style>
 
-    <!-- Secondary: white surface, outline, dark text -->
-    <style name="Widget.VirtualVolunteer.Button.Secondary" parent="Widget.Material3.Button.OutlinedButton">
-        <item name="strokeColor">@color/text_secondary</item>
+    <!-- Tertiary / quiet actions -->
+    <style name="Widget.VirtualVolunteer.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="strokeColor">@color/outline_soft</item>
         <item name="strokeWidth">1dp</item>
-        <item name="backgroundTint">@color/surface_white</item>
         <item name="android:textColor">@color/text_primary</item>
+        <item name="iconTint">@color/text_secondary</item>
         <item name="cornerRadius">@dimen/button_corner_full</item>
-        <item name="android:minHeight">48dp</item>
+        <item name="android:minHeight">52dp</item>
         <item name="android:insetTop">0dp</item>
         <item name="android:insetBottom">0dp</item>
+    </style>
+
+    <style name="Widget.VirtualVolunteer.Button.Text" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textColor">@color/accent_pink</item>
+        <item name="cornerRadius">@dimen/button_corner_full</item>
+        <item name="android:minHeight">48dp</item>
+    </style>
+
+    <!-- Icon buttons (trailing row actions) -->
+    <style name="Widget.VirtualVolunteer.IconButton" parent="Widget.Material3.Button.IconButton">
+        <item name="iconSize">22dp</item>
+        <item name="iconTint">@color/text_secondary</item>
+        <item name="android:minWidth">@dimen/min_touch_target</item>
+        <item name="android:minHeight">@dimen/min_touch_target</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:padding">0dp</item>
+    </style>
+
+    <style name="Widget.VirtualVolunteer.IconButton.Accent" parent="Widget.VirtualVolunteer.IconButton">
+        <item name="iconTint">@color/accent_pink</item>
+    </style>
+
+    <style name="Widget.VirtualVolunteer.IconButton.Tonal" parent="Widget.Material3.Button.IconButton.Filled.Tonal">
+        <item name="backgroundTint">@color/surface_container</item>
+        <item name="iconTint">@color/text_secondary</item>
+        <item name="iconSize">22dp</item>
+        <item name="android:minWidth">@dimen/min_touch_target</item>
+        <item name="android:minHeight">@dimen/min_touch_target</item>
+    </style>
+
+    <!-- Extended FAB: pill, soft elevation, floats above cards.
+         Ambient-only shadow (no directional key-light) — soft, low-opacity glow. -->
+    <style name="Widget.VirtualVolunteer.ExtendedFab" parent="Widget.Material3.ExtendedFloatingActionButton.Primary">
+        <item name="backgroundTint">@color/accent_pink</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="iconTint">@color/white</item>
+        <item name="android:minHeight">56dp</item>
+        <item name="elevation">@dimen/fab_elevation</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.VirtualVolunteer.Pill</item>
+    </style>
+
+    <!-- "Participants": filled tonal button standing in the FAB's spot — flat, soft, more transparent pink -->
+    <style name="Widget.VirtualVolunteer.ExtendedFab.Secondary" parent="Widget.Material3.ExtendedFloatingActionButton.Secondary">
+        <item name="backgroundTint">@color/accent_pink_container_soft</item>
+        <item name="android:textColor">@color/accent_pink_on_container</item>
+        <item name="iconTint">@color/accent_pink</item>
+        <item name="android:minHeight">56dp</item>
+        <item name="elevation">0dp</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.VirtualVolunteer.Pill</item>
+    </style>
+
+    <!-- Chips -->
+    <style name="Widget.VirtualVolunteer.Chip" parent="Widget.Material3.Chip.Assist">
+        <item name="chipBackgroundColor">@color/surface_container</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="chipCornerRadius">@dimen/chip_corner_radius</item>
+        <item name="chipStrokeWidth">0dp</item>
     </style>
 
     <!-- Typography -->
+
+    <!-- Large edge-to-edge page title: bold, brand purple, Google Photos-style -->
+    <style name="TextAppearance.VirtualVolunteer.PageTitle" parent="TextAppearance.Material3.HeadlineLarge">
+        <item name="android:textColor">@color/purple_primary</item>
+        <item name="android:textFontWeight" tools:targetApi="28">700</item>
+        <item name="android:letterSpacing">0</item>
+    </style>
+
     <style name="TextAppearance.VirtualVolunteer.ScreenTitle" parent="TextAppearance.Material3.HeadlineSmall">
         <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textFontWeight" tools:targetApi="28">600</item>
+        <item name="android:letterSpacing">0</item>
     </style>
 
     <style name="TextAppearance.VirtualVolunteer.Title" parent="TextAppearance.Material3.TitleLarge">
         <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textFontWeight" tools:targetApi="28">600</item>
     </style>
 
     <style name="TextAppearance.VirtualVolunteer.TitleMedium" parent="TextAppearance.Material3.TitleMedium">
         <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textFontWeight" tools:targetApi="28">500</item>
     </style>
 
     <style name="TextAppearance.VirtualVolunteer.Meta" parent="TextAppearance.Material3.BodyMedium">
         <item name="android:textColor">@color/text_secondary</item>
     </style>
 
-    <style name="TextAppearance.VirtualVolunteer.SectionLabel" parent="TextAppearance.Material3.TitleSmall">
+    <style name="TextAppearance.VirtualVolunteer.SectionLabel" parent="TextAppearance.Material3.TitleMedium">
         <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textFontWeight" tools:targetApi="28">500</item>
     </style>
 
     <style name="TextAppearance.VirtualVolunteer.Caption" parent="TextAppearance.Material3.BodySmall">
         <item name="android:textColor">@color/text_secondary</item>
     </style>
 
-    <style name="TextAppearance.VirtualVolunteer.FinishHighlight" parent="TextAppearance.Material3.TitleSmall">
+    <style name="TextAppearance.VirtualVolunteer.FinishHighlight" parent="TextAppearance.Material3.TitleMedium">
         <item name="android:textColor">@color/accent_pink</item>
-        <item name="android:textStyle">bold</item>
+        <item name="android:textFontWeight" tools:targetApi="28">500</item>
+    </style>
+
+    <!-- Large timer — focal point of the race-detail screen. Bundled Nunito SemiBold for
+         reliably rounded digits (downloadable fonts via Play Services were not applying). -->
+    <style name="TextAppearance.VirtualVolunteer.Timer" parent="TextAppearance.Material3.DisplaySmall">
+        <item name="android:fontFamily">@font/nunito_semibold</item>
+        <item name="fontFamily">@font/nunito_semibold</item>
+        <item name="android:textColor">@color/accent_pink</item>
+        <item name="android:textSize">68sp</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+    </style>
+
+    <style name="TextAppearance.VirtualVolunteer.MovingTime" parent="TextAppearance.Material3.HeadlineSmall">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textFontWeight" tools:targetApi="28">500</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+    </style>
+
+    <!-- Event list card: date (prominent) / time (quiet). Bumped size + weight so the date is
+         unmistakably the primary piece of information on the card. -->
+    <style name="TextAppearance.VirtualVolunteer.EventDate" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">27sp</item>
+        <item name="android:textFontWeight" tools:targetApi="28">700</item>
+    </style>
+
+    <style name="TextAppearance.VirtualVolunteer.EventTime" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:textSize">19sp</item>
+        <item name="android:textFontWeight" tools:targetApi="28">400</item>
     </style>
 </resources>

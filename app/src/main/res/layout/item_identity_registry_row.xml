@@ -5,8 +5,8 @@
     style="@style/Widget.VirtualVolunteer.Card"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="5dp"
-    android:layout_marginVertical="4dp">
+    android:layout_marginHorizontal="6dp"
+    android:layout_marginVertical="6dp">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/registryRowMain"
@@ -15,7 +15,7 @@
         android:background="?attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true"
-        android:padding="8dp">
+        android:padding="12dp">
 
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/registryThumb"
@@ -32,43 +32,32 @@
 
         <ImageButton
             android:id="@+id/btnDeleteIdentity"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_marginBottom="4dp"
-            android:layout_marginEnd="4dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginBottom="6dp"
+            android:layout_marginEnd="6dp"
             android:background="@drawable/bg_photo_overlay_icon_circle"
             android:contentDescription="@string/btn_delete_identity_cd"
-            android:padding="7dp"
-            android:src="@android:drawable/ic_menu_delete"
+            android:padding="8dp"
+            android:src="@drawable/ic_delete"
             app:layout_constraintBottom_toBottomOf="@+id/registryThumb"
             app:layout_constraintEnd_toEndOf="@+id/registryThumb"
             app:tint="@android:color/white" />
 
-        <!-- Line 1: #N  code (combined with accent span in adapter) -->
         <TextView
             android:id="@+id/registryIdText"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="4dp"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+            android:textAppearance="@style/TextAppearance.VirtualVolunteer.TitleMedium"
+            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/registryThumb"
             tools:text="#42  ABC123" />
-
-        <!-- Line 2: created date -->
-        <TextView
-            android:id="@+id/registryCreatedText"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:textAppearance="@style/TextAppearance.VirtualVolunteer.Caption"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/registryIdText"
-            tools:text="2026-04-21 10:00:00" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </com.google.android.material.card.MaterialCardView>

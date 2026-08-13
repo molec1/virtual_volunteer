@@ -2,11 +2,11 @@
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    style="@style/Widget.VirtualVolunteer.Card"
+    style="@style/Widget.VirtualVolunteer.Card.Nested"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="4dp"
-    android:layout_marginVertical="4dp"
+    android:layout_marginVertical="@dimen/participant_row_vertical_gap"
     android:clickable="true"
     android:focusable="true"
     android:foreground="?attr/selectableItemBackground">
@@ -39,7 +39,6 @@
             android:layout_marginStart="1dp"
             android:background="@drawable/bg_placeholder_photo"
             android:contentDescription="@string/participant_thumb_cd"
-            android:padding="8dp"
             android:scaleType="centerCrop"
             app:shapeAppearanceOverlay="@style/ShapeAppearance.VirtualVolunteer.RoundedThumb"
             tools:ignore="ImageContrastCheck" />
@@ -47,7 +46,7 @@
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="2dp"
+            android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:orientation="vertical">
 
@@ -84,16 +83,22 @@
                 tools:visibility="visible" />
         </LinearLayout>
 
+        <!-- Numeric text size is tuned (not the shared HeadlineSmall size) so the digits visually
+             fill the row to the same height as the 32dp action icons — tabular figures avoid
+             per-digit width jitter, includeFontPadding=false drops the reserved ascender/descender
+             padding that made the same nominal size look shorter than the icons. -->
         <TextView
             android:id="@+id/participantMovingTime"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="0dp"
+            android:fontFeatureSettings="tnum"
             android:gravity="end|center_vertical"
+            android:includeFontPadding="false"
             android:minWidth="48dp"
             android:textAlignment="viewEnd"
-            android:textAppearance="@style/TextAppearance.Material3.HeadlineSmall"
             android:textColor="@color/text_primary"
+            android:textSize="27sp"
             android:textStyle="bold"
             tools:text="1:23:45" />
 
@@ -107,39 +112,39 @@
                 android:id="@+id/btnFaceLookup"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/btn_face_lookup_cd"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
                 android:padding="2dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/btn_face_lookup_cd"
-                android:src="@android:drawable/ic_menu_search"
                 android:scaleType="fitCenter"
+                android:src="@drawable/ic_search"
                 app:tint="@color/secondary_ui" />
 
             <ImageButton
                 android:id="@+id/btnScanCode"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/btn_scan_code_cd"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
                 android:padding="2dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/btn_scan_code_cd"
-                android:src="@drawable/ic_scan_code"
                 android:scaleType="fitCenter"
+                android:src="@drawable/ic_scan_code"
                 app:tint="@color/accent_pink" />
 
             <ImageButton
                 android:id="@+id/btnRemoveParticipant"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/btn_remove_participant_cd"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
                 android:padding="2dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/btn_remove_participant_cd"
-                android:src="@drawable/ic_delete"
                 android:scaleType="fitCenter"
+                android:src="@drawable/ic_delete"
                 app:tint="@color/text_secondary" />
         </LinearLayout>
 

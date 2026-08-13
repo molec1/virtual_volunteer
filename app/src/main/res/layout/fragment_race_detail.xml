@@ -1,20 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/scrollContent"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background_light"
-    android:fillViewport="true">
+    android:background="@drawable/bg_screen_gradient">
+
+    <!-- Fixed edge-to-edge header: back button + large page title -->
+    <LinearLayout
+        android:id="@+id/raceDetailHeader"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/screen_title_horizontal_padding"
+        android:paddingTop="@dimen/screen_title_top_padding"
+        android:paddingEnd="@dimen/screen_title_horizontal_padding"
+        android:paddingBottom="8dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnBack"
+            style="@style/Widget.VirtualVolunteer.IconButton.Tonal"
+            android:layout_width="@dimen/min_touch_target"
+            android:layout_height="@dimen/min_touch_target"
+            android:layout_marginEnd="12dp"
+            android:contentDescription="@string/action_back_cd"
+            app:icon="@drawable/ic_arrow_back" />
+
+        <TextView
+            android:id="@+id/raceDetailTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textAppearance="@style/TextAppearance.VirtualVolunteer.PageTitle"
+            tools:text="20 Jun 2026" />
+    </LinearLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/scrollContent"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:fillViewport="true"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/raceDetailHeader">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:paddingHorizontal="@dimen/screen_horizontal_padding"
-        android:paddingTop="12dp"
-        android:paddingBottom="28dp">
+        android:paddingTop="@dimen/section_spacing_medium"
+        android:paddingBottom="36dp">
 
         <!-- Header: Race start time (prominent) + Start/Stop button -->
         <androidx.constraintlayout.widget.ConstraintLayout
@@ -45,23 +88,42 @@
                         android:text="@string/race_start_time_label"
                         android:textAppearance="@style/TextAppearance.VirtualVolunteer.TitleMedium" />
 
-                    <TextView
-                        android:id="@+id/raceStartTimeValue"
-                        android:layout_width="0dp"
+                    <!-- Compact soft pill (not a full-width field): pink wash + edit icon so
+                         editing stays discoverable without looking like a corporate text input.
+                         Tapping the chip or the icon opens the same editor. -->
+                    <LinearLayout
+                        android:id="@+id/raceStartTimeEditChip"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="10dp"
-                        android:layout_weight="1"
-                        android:textAppearance="@style/TextAppearance.VirtualVolunteer.TitleMedium"
-                        tools:text="2026-04-21 10:00:00" />
+                        android:background="@drawable/bg_time_edit_field"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackgroundBorderless"
+                        android:gravity="center_vertical"
+                        android:minHeight="36dp"
+                        android:orientation="horizontal"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="4dp">
 
-                    <ImageButton
-                        android:id="@+id/btnEditRaceStartTime"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
-                        android:background="?attr/selectableItemBackgroundBorderless"
-                        android:contentDescription="@string/race_start_time_edit_cd"
-                        android:src="@android:drawable/ic_menu_edit"
-                        app:tint="@color/secondary_ui" />
+                        <TextView
+                            android:id="@+id/raceStartTimeValue"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textAppearance="@style/TextAppearance.VirtualVolunteer.TitleMedium"
+                            android:textColor="@color/accent_pink"
+                            tools:text="2026-04-21 10:00:00" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnEditRaceStartTime"
+                            style="@style/Widget.VirtualVolunteer.IconButton"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:contentDescription="@string/race_start_time_edit_cd"
+                            app:icon="@drawable/ic_edit"
+                            app:iconSize="16dp"
+                            app:iconTint="@color/accent_pink" />
+                    </LinearLayout>
                 </LinearLayout>
             </LinearLayout>
 
@@ -79,7 +141,7 @@
                 android:padding="0dp"
                 android:text=""
                 android:visibility="gone"
-                app:cornerRadius="8dp"
+                app:cornerRadius="20dp"
                 app:icon="@drawable/ic_play"
                 app:iconGravity="textTop"
                 app:iconPadding="0dp"
@@ -99,24 +161,16 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:paddingTop="@dimen/section_spacing_medium"
+            android:paddingTop="10dp"
             android:visibility="gone"
             tools:visibility="visible">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/timer_label"
-                android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel"
-                android:textColor="@color/text_primary" />
 
             <TextView
                 android:id="@+id/timerValue"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:paddingStart="12dp"
-                android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                android:textColor="@color/accent_pink"
+                android:fontFamily="@font/nunito_semibold"
+                android:textAppearance="@style/TextAppearance.VirtualVolunteer.Timer"
                 tools:text="00:00" />
         </LinearLayout>
 
@@ -148,7 +202,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnTakeVolunteerPhoto"
-                style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                style="@style/Widget.VirtualVolunteer.Button.Outlined"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
@@ -249,6 +303,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
+                        android:clipChildren="false"
                         android:clipToPadding="false"
                         android:nestedScrollingEnabled="false"
                         android:paddingTop="8dp"
@@ -264,7 +319,7 @@
         <!-- Add participant manually (visible after race starts) -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnAddManualFinish"
-            style="@style/Widget.VirtualVolunteer.Button.Secondary"
+            style="@style/Widget.VirtualVolunteer.Button.Outlined"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
@@ -323,7 +378,7 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnExport"
-                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        style="@style/Widget.VirtualVolunteer.Button.Outlined"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
@@ -331,7 +386,7 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnExportTimesCsv"
-                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        style="@style/Widget.VirtualVolunteer.Button.Outlined"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
@@ -339,7 +394,7 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnExportParticipantsCsv"
-                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        style="@style/Widget.VirtualVolunteer.Button.Outlined"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
@@ -354,7 +409,7 @@
             style="@style/Widget.VirtualVolunteer.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/section_spacing_large">
+            android:layout_marginTop="@dimen/race_detail_bottom_card_gap">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -413,6 +468,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
+                        android:clipChildren="false"
                         android:clipToPadding="false"
                         android:nestedScrollingEnabled="false"
                         android:paddingTop="4dp"
@@ -429,7 +485,7 @@
             style="@style/Widget.VirtualVolunteer.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/section_spacing_large">
+            android:layout_marginTop="@dimen/race_detail_bottom_card_gap">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -473,7 +529,7 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnImportStartPhotos"
-                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        style="@style/Widget.VirtualVolunteer.Button.Outlined"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
@@ -481,7 +537,7 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnImportFinishPhotos"
-                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        style="@style/Widget.VirtualVolunteer.Button.Outlined"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
@@ -489,7 +545,7 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnBuildTestProtocol"
-                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        style="@style/Widget.VirtualVolunteer.Button.Outlined"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
@@ -497,7 +553,7 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnReprocessRace"
-                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        style="@style/Widget.VirtualVolunteer.Button.Outlined"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
@@ -505,7 +561,7 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnTestSingleFinishPhoto"
-                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        style="@style/Widget.VirtualVolunteer.Button.Outlined"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
@@ -513,7 +569,7 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnExportDebugBundle"
-                        style="@style/Widget.VirtualVolunteer.Button.Secondary"
+                        style="@style/Widget.VirtualVolunteer.Button.Outlined"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
@@ -528,7 +584,7 @@
             style="@style/Widget.VirtualVolunteer.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/section_spacing_large">
+            android:layout_marginTop="@dimen/race_detail_bottom_card_gap">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -593,4 +649,5 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
     </LinearLayout>
-</androidx.core.widget.NestedScrollView>
+    </androidx.core.widget.NestedScrollView>
+</androidx.constraintlayout.widget.ConstraintLayout>

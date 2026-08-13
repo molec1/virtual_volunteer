@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
@@ -15,36 +16,38 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content">
 
-        <ImageView
+        <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/embeddingPreviewImage"
-            android:layout_width="88dp"
-            android:layout_height="88dp"
+            android:layout_width="92dp"
+            android:layout_height="92dp"
             android:background="@drawable/bg_placeholder_photo"
             android:contentDescription="@string/participant_embedding_preview_cd"
             android:scaleType="centerCrop"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.VirtualVolunteer.RoundedThumb"
             tools:ignore="ImageContrastCheck" />
 
         <ImageButton
             android:id="@+id/btnDetachEmbedding"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
             android:layout_gravity="top|end"
             android:layout_margin="4dp"
-            android:background="@android:color/transparent"
+            android:background="@drawable/bg_photo_overlay_icon_circle"
             android:contentDescription="@string/action_detach_embedding_cd"
-            android:padding="2dp"
+            android:padding="6dp"
             android:src="@drawable/ic_link_off"
+            app:tint="@color/white"
             tools:ignore="TouchTargetSizeCheck" />
 
     </FrameLayout>
 
     <TextView
         android:id="@+id/embeddingPreviewCaption"
-        android:layout_width="96dp"
+        android:layout_width="100dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="6dp"
         android:gravity="center_horizontal"
-        android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
+        android:textAppearance="@style/TextAppearance.VirtualVolunteer.Caption"
         tools:text="Start\nRace abcdef12…" />
 
 </LinearLayout>

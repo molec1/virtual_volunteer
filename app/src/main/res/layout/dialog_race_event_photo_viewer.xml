@@ -13,20 +13,21 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#66000000"
+        android:background="@color/scrim_soft"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingHorizontal="4dp"
+        android:paddingHorizontal="8dp"
         android:paddingTop="8dp"
         android:paddingBottom="8dp">
 
         <ImageButton
             android:id="@+id/btnClose"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="@dimen/min_touch_target"
+            android:layout_height="@dimen/min_touch_target"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/race_event_photo_viewer_close_cd"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:padding="12dp"
+            android:src="@drawable/ic_close"
             app:tint="@color/white" />
 
         <TextView
@@ -34,8 +35,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
+            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
             android:textColor="@color/white"
-            android:textSize="14sp"
             android:visibility="gone" />
 
         <View
@@ -45,20 +46,22 @@
 
         <ImageButton
             android:id="@+id/btnShare"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="@dimen/min_touch_target"
+            android:layout_height="@dimen/min_touch_target"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/race_event_photo_viewer_share_cd"
-            android:src="@android:drawable/ic_menu_share"
+            android:padding="12dp"
+            android:src="@drawable/ic_share"
             app:tint="@color/white" />
 
         <ImageButton
             android:id="@+id/btnDelete"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="@dimen/min_touch_target"
+            android:layout_height="@dimen/min_touch_target"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/race_event_photo_viewer_delete_cd"
-            android:src="@android:drawable/ic_menu_delete"
+            android:padding="12dp"
+            android:src="@drawable/ic_delete"
             app:tint="@color/white" />
     </LinearLayout>
 </FrameLayout>

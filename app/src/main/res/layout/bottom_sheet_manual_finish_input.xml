@@ -6,7 +6,9 @@
     android:layout_height="wrap_content"
     android:background="@color/surface_white"
     android:orientation="vertical"
-    android:padding="@dimen/screen_horizontal_padding">
+    android:paddingHorizontal="@dimen/screen_horizontal_padding"
+    android:paddingTop="@dimen/section_spacing_medium"
+    android:paddingBottom="@dimen/section_spacing_large">
 
     <TextView
         android:layout_width="match_parent"
@@ -26,13 +28,14 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
         android:text="@string/manual_finish_race_finish_photos_label"
-        android:textAppearance="@style/TextAppearance.VirtualVolunteer.SectionLabel" />
+        android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/finishPhotosRecycler"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="10dp"
+        android:clipChildren="false"
         android:clipToPadding="false"
         android:paddingBottom="4dp"
         tools:itemCount="4"
@@ -42,8 +45,8 @@
         android:id="@+id/groupPhotoTime"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:layout_marginTop="10dp">
+        android:layout_marginTop="12dp"
+        android:orientation="vertical">
 
         <TextView
             android:id="@+id/textSelectedPhoto"
@@ -65,12 +68,12 @@
         android:id="@+id/groupManualTime"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:layout_marginTop="10dp">
+        android:layout_marginTop="12dp"
+        android:orientation="vertical">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnPickDate"
-            style="@style/Widget.VirtualVolunteer.Button.Secondary"
+            style="@style/Widget.VirtualVolunteer.Button.Outlined"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/manual_finish_pick_date" />
@@ -85,7 +88,7 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnPickTime"
-            style="@style/Widget.VirtualVolunteer.Button.Secondary"
+            style="@style/Widget.VirtualVolunteer.Button.Outlined"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"

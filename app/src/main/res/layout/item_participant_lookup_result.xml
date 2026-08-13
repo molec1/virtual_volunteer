@@ -5,8 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingHorizontal="@dimen/card_padding"
-    android:paddingVertical="@dimen/list_content_padding">
+    android:paddingVertical="@dimen/list_item_gap">
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/participantCard"
@@ -20,17 +19,18 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:gravity="center_vertical"
             android:orientation="horizontal"
             android:padding="@dimen/card_padding">
 
-            <ImageView
+            <com.google.android.material.imageview.ShapeableImageView
                 android:id="@+id/participantLookupThumbnail"
-                android:layout_width="60dp"
-                android:layout_height="60dp"
-                android:layout_gravity="center_vertical"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
                 android:background="@drawable/bg_placeholder_photo"
                 android:contentDescription="@string/participant_thumb_cd"
                 android:scaleType="centerCrop"
+                app:shapeAppearanceOverlay="@style/ShapeAppearance.VirtualVolunteer.RoundedThumb"
                 tools:ignore="ImageContrastCheck" />
 
             <LinearLayout
@@ -44,7 +44,7 @@
                     android:id="@+id/participantLookupName"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.Title"
+                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.TitleMedium"
                     tools:text="John Doe (ID 123)" />
 
                 <TextView
@@ -60,7 +60,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.Meta"
+                    android:textAppearance="@style/TextAppearance.VirtualVolunteer.Caption"
                     tools:text="Similarity: 0.95" />
 
             </LinearLayout>

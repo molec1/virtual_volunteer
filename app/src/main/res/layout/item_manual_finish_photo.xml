@@ -3,11 +3,11 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     style="@style/Widget.VirtualVolunteer.Card"
-    android:layout_width="96dp"
-    android:layout_height="96dp"
-    android:layout_marginEnd="8dp">
+    android:layout_width="100dp"
+    android:layout_height="100dp"
+    android:layout_marginEnd="10dp">
 
-    <ImageView
+    <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/finishPhotoThumb"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -15,5 +15,6 @@
         android:contentDescription="@string/manual_finish_photo_tile_cd"
         android:padding="@dimen/face_thumb_inner_padding"
         android:scaleType="centerInside"
+        app:shapeAppearanceOverlay="@style/ShapeAppearance.VirtualVolunteer.RoundedThumb"
         tools:ignore="ImageContrastCheck" />
 </com.google.android.material.card.MaterialCardView>

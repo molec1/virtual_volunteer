@@ -15,6 +15,7 @@ import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanIntentResult
 import com.journeyapps.barcodescanner.ScanOptions
 import androidx.fragment.app.Fragment
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.lifecycle.Lifecycle
@@ -32,6 +33,7 @@ import com.virtualvolunteer.app.domain.RacePhotoProcessorFactory
 import com.virtualvolunteer.app.domain.face.MlKitFaceDetector
 import com.virtualvolunteer.app.domain.face.TfliteFaceEmbedder
 import com.virtualvolunteer.app.ui.scan.BarcodeScanActivity
+import com.virtualvolunteer.app.ui.util.EdgeToEdgeInsets
 import com.virtualvolunteer.app.ui.util.RaceUiFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
@@ -188,6 +190,10 @@ class RaceDetailFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        EdgeToEdgeInsets.applyStatusBarPadding(binding.raceDetailHeader)
+        EdgeToEdgeInsets.applyNavigationBarPadding(binding.scrollContent)
+        binding.btnBack.setOnClickListener { findNavController().popBackStack() }
+
         val app = requireActivity().application as VirtualVolunteerApp
         val repo = app.raceRepository
 
@@ -300,6 +306,7 @@ class RaceDetailFragment : Fragment() {
         binding.btnAddManualFinish.setOnClickListener { participantActions.openManualFinishBottomSheet() }
 
         binding.btnEditRaceStartTime.setOnClickListener { showEditRaceStartTimeDialog() }
+        binding.raceStartTimeEditChip.setOnClickListener { showEditRaceStartTimeDialog() }
 
         binding.exportHeaderLayout.setOnClickListener { collapsibleSections.toggleExport(binding) }
         binding.offlineTestHeaderLayout.setOnClickListener { collapsibleSections.toggleOfflineTest(binding) }
@@ -330,11 +337,12 @@ class RaceDetailFragment : Fragment() {
     }
 
     private fun renderUi(race: RaceEntity) {
-        requireActivity().title = RaceUiFormatter.formatDate(race.createdAtEpochMillis)
+        binding.raceDetailTitle.text = RaceUiFormatter.formatDateReadable(race.createdAtEpochMillis)
 
         val startMs = race.startedAtEpochMillis
+        // Only the time is shown here — the date already appears in the page title above.
         binding.raceStartTimeValue.text = if (startMs != null) {
-            RaceUiFormatter.formatDateTime(startMs)
+            RaceUiFormatter.formatTime(startMs)
         } else {
             getString(R.string.race_start_time_not_set)
         }

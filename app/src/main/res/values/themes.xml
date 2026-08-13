@@ -5,43 +5,98 @@
         <!-- Brand / toolbar -->
         <item name="colorPrimary">@color/purple_primary</item>
         <item name="colorOnPrimary">@color/white</item>
-        <item name="colorPrimaryContainer">@color/purple_primary_light</item>
-        <item name="colorOnPrimaryContainer">@color/white</item>
+        <item name="colorPrimaryContainer">@color/purple_container</item>
+        <item name="colorOnPrimaryContainer">@color/purple_on_container</item>
 
-        <!-- Accent (FABs, filled actions via styles) -->
+        <!-- Accent (pink CTAs / FAB) -->
         <item name="colorSecondary">@color/accent_pink</item>
         <item name="colorOnSecondary">@color/white</item>
-        <item name="colorSecondaryContainer">@color/accent_pink</item>
-        <item name="colorOnSecondaryContainer">@color/white</item>
+        <item name="colorSecondaryContainer">@color/accent_pink_container</item>
+        <item name="colorOnSecondaryContainer">@color/accent_pink_on_container</item>
 
         <!-- Surfaces & text -->
         <item name="android:colorBackground">@color/background_light</item>
         <item name="colorSurface">@color/surface_white</item>
+        <!-- Full surface-container ramp overridden with the warm-white + purple-tint tokens.
+             Without this, several stock M3 components (bottom sheets, elevated cards/buttons,
+             menus, search bars) fall back to the baseline theme's neutral gray container
+             colors, which is exactly the "gray card" look this app avoids. -->
+        <item name="colorSurfaceContainerLowest">@color/surface_white</item>
+        <item name="colorSurfaceContainerLow">@color/surface_container</item>
+        <item name="colorSurfaceContainer">@color/surface_container</item>
+        <item name="colorSurfaceContainerHigh">@color/surface_container_high</item>
+        <item name="colorSurfaceContainerHighest">@color/surface_container_highest</item>
+        <!-- Overridden so any stock M3 component defaulting to colorSurfaceVariant picks up our
+             warm-white + purple-tint token instead of the baseline theme's neutral gray. -->
+        <item name="colorSurfaceVariant">@color/surface_container_high</item>
+        <!-- Material3.Light enables "elevationOverlayEnabled" by default, which composites
+             elevationOverlayColor (= colorPrimary, our dark purple) onto ANY MaterialShapeDrawable
+             surface as elevation increases — this runs on top of an explicit cardBackgroundColor
+             and is what was washing our white cards toward gray/purple, worse the higher the
+             elevation. Disabling it keeps cards at the literal white/near-white tokens we define,
+             independent of elevation. -->
+        <item name="elevationOverlayEnabled">false</item>
         <item name="colorOnSurface">@color/text_primary</item>
         <item name="colorOnSurfaceVariant">@color/text_secondary</item>
-        <item name="colorOutline">@color/text_secondary</item>
+        <item name="colorOutline">@color/outline_soft</item>
+        <item name="colorOutlineVariant">@color/surface_container_high</item>
 
-        <!-- Highlights / badges -->
+        <!-- Soft tertiary (same purple family — no new accents) -->
         <item name="colorTertiary">@color/secondary_ui</item>
         <item name="colorOnTertiary">@color/white</item>
+        <item name="colorTertiaryContainer">@color/purple_container</item>
+        <item name="colorOnTertiaryContainer">@color/purple_on_container</item>
 
-        <!-- System bars: match dark purple -->
-        <item name="android:navigationBarColor">@color/purple_primary_dark</item>
-        <item name="android:statusBarColor">@color/purple_primary_dark</item>
-        <item name="android:windowLightStatusBar">false</item>
+        <!-- Component defaults -->
+        <item name="materialCardViewStyle">@style/Widget.VirtualVolunteer.Card</item>
+        <item name="materialButtonStyle">@style/Widget.VirtualVolunteer.Button.Primary</item>
+        <item name="extendedFloatingActionButtonStyle">@style/Widget.VirtualVolunteer.ExtendedFab</item>
+        <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.VirtualVolunteer.SmallComponent</item>
+        <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.VirtualVolunteer.MediumComponent</item>
+        <item name="shapeAppearanceLargeComponent">@style/ShapeAppearance.VirtualVolunteer.LargeComponent</item>
+
+        <!-- Edge-to-edge: no AppBar, bars are transparent overlays with dark icons on the light bg -->
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="23">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
+        <item name="android:windowBackground">@drawable/bg_screen_gradient</item>
+        <item name="android:enforceNavigationBarContrast" tools:targetApi="29">false</item>
+        <item name="android:enforceStatusBarContrast" tools:targetApi="29">false</item>
+    </style>
+
+    <!-- Shape system -->
+    <style name="ShapeAppearance.VirtualVolunteer.SmallComponent" parent="ShapeAppearance.Material3.Corner.Small">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">12dp</item>
+    </style>
+
+    <style name="ShapeAppearance.VirtualVolunteer.MediumComponent" parent="ShapeAppearance.Material3.Corner.Medium">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/image_corner_radius</item>
+    </style>
+
+    <style name="ShapeAppearance.VirtualVolunteer.LargeComponent" parent="ShapeAppearance.Material3.Corner.Large">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/card_corner_radius</item>
     </style>
 
     <style name="ShapeAppearance.VirtualVolunteer.RoundedThumb" parent="">
         <item name="cornerFamily">rounded</item>
-        <item name="cornerSize">10dp</item>
+        <item name="cornerSize">@dimen/image_corner_radius</item>
     </style>
 
-    <style name="ThemeOverlay.VirtualVolunteer.Toolbar" parent="ThemeOverlay.Material3.ActionBar">
-        <item name="colorPrimary">@color/purple_primary</item>
-        <item name="colorOnPrimary">@color/white</item>
-        <item name="android:textColorPrimary">@color/white</item>
-        <item name="android:textColorSecondary">@color/white</item>
-        <item name="colorControlNormal">@color/white</item>
+    <!-- Event list start-photo thumbnail: corner radius kept concentric with the surrounding
+         card (card_corner_radius − race_row_card_padding) instead of the shared, smaller
+         image_corner_radius, so the nested rounding reads as one deliberate shape system. -->
+    <style name="ShapeAppearance.VirtualVolunteer.RaceThumb" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/race_row_thumb_corner_radius</item>
+    </style>
+
+    <style name="ShapeAppearance.VirtualVolunteer.Pill" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item>
     </style>
 
     <style name="ThemeOverlay.VirtualVolunteer.FullScreenPhoto" parent="Theme.Material3.Dark.NoActionBar">

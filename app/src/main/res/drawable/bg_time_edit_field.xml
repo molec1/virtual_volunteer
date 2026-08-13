@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Soft editable chip for race start time: a light pink wash, no border/outline.
+     wrap_content + pill radius keep it feeling like a friendly tappable chip rather
+     than a full-width corporate text field. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/accent_pink_container_soft" />
+    <corners android:radius="999dp" />
+</shape>

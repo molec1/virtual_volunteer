@@ -2,11 +2,11 @@
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    style="@style/Widget.VirtualVolunteer.Card"
+    style="@style/Widget.VirtualVolunteer.Card.Nested"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="@dimen/list_content_padding"
-    android:layout_marginVertical="4dp"
+    android:layout_marginVertical="@dimen/participant_row_vertical_gap"
     android:clickable="true"
     android:focusable="true"
     android:foreground="?attr/selectableItemBackground">
@@ -39,7 +39,6 @@
             android:layout_marginStart="6dp"
             android:background="@drawable/bg_placeholder_photo"
             android:contentDescription="@string/participant_thumb_cd"
-            android:padding="8dp"
             android:scaleType="centerCrop"
             app:shapeAppearanceOverlay="@style/ShapeAppearance.VirtualVolunteer.RoundedThumb"
             tools:ignore="ImageContrastCheck" />
@@ -82,16 +81,22 @@
                 tools:visibility="visible" />
         </LinearLayout>
 
+        <!-- Numeric text size is tuned (not the shared HeadlineSmall size) so the digits visually
+             fill the row to the same height as the action icons — tabular figures avoid
+             per-digit width jitter, includeFontPadding=false drops the reserved ascender/descender
+             padding that made the same nominal size look shorter than the icons. -->
         <TextView
             android:id="@+id/participantMovingTime"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="6dp"
+            android:fontFeatureSettings="tnum"
             android:gravity="end|center_vertical"
+            android:includeFontPadding="false"
             android:minWidth="56dp"
             android:textAlignment="viewEnd"
-            android:textAppearance="@style/TextAppearance.Material3.HeadlineSmall"
             android:textColor="@color/text_primary"
+            android:textSize="30sp"
             android:textStyle="bold"
             tools:text="1:23:45" />
 
@@ -107,7 +112,7 @@
                 android:layout_height="@dimen/participant_row_action_button_size"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/btn_face_lookup_cd"
-                android:src="@android:drawable/ic_menu_search"
+                android:src="@drawable/ic_search"
                 app:tint="@color/secondary_ui" />
 
             <ImageButton

@@ -15,6 +15,7 @@ import com.virtualvolunteer.app.R
 import com.virtualvolunteer.app.VirtualVolunteerApp
 import com.virtualvolunteer.app.data.local.RaceEntity
 import com.virtualvolunteer.app.databinding.FragmentRaceListBinding
+import com.virtualvolunteer.app.ui.util.EdgeToEdgeInsets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -35,6 +36,11 @@ class RaceListFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        EdgeToEdgeInsets.applyStatusBarPadding(binding.raceListTitle)
+        EdgeToEdgeInsets.applyNavigationBarPadding(binding.raceRecycler)
+        EdgeToEdgeInsets.applyNavigationBarMargin(binding.fabIdentityRegistry)
+
         val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
 
         val adapter = RaceListAdapter(

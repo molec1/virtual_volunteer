@@ -3,6 +3,7 @@ package com.virtualvolunteer.app.ui.camera
 import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
+import android.os.Build
 import android.util.Log
 import android.util.SizeF
 import androidx.camera.camera2.interop.Camera2CameraInfo
@@ -88,26 +89,95 @@ internal object RearCameraSelector {
 
     /**
      * When both real-camera paths found only one camera, call this after binding to check if the
-     * device's zoom range supports a second synthetic option (1×/2×/5×).
+     * device's zoom range supports a second synthetic option.
+     *
+     * If [physicalLensRatios] (from [physicalLensZoomRatios]) has usable entries, those *real*
+     * hardware crossover ratios are used instead of a generic 1×/2×/5× ladder — requesting a zoom
+     * ratio that lands exactly on a physical lens's native focal length gives the device's camera
+     * HAL the best chance of actually switching lenses internally rather than just digitally
+     * cropping the same sensor. Falls back to the generic ladder when that is unavailable.
+     *
      * Returns an empty list when no synthesis is possible or real options already exist.
      */
     fun buildZoomOptions(
         existingOptions: List<RearCameraOption>,
         maxZoomRatio: Float,
+        physicalLensRatios: List<Pair<String, Float>> = emptyList(),
     ): List<RearCameraOption> {
         if (existingOptions.size >= 2) return emptyList()
+        val selector = existingOptions.firstOrNull()?.selector ?: CameraSelector.DEFAULT_BACK_CAMERA
+
+        val usableLensRatios = physicalLensRatios.filter { it.second <= maxZoomRatio + 0.05f }
+        if (usableLensRatios.size >= 2) {
+            val result = usableLensRatios.map { (label, ratio) -> RearCameraOption(-1, label, selector, zoomRatio = ratio) }
+            Log.d(TAG, "buildZoomOptions: using physical-lens ratios → ${result.map { it.label }}")
+            return result
+        }
+
         if (maxZoomRatio < 2.0f) {
             Log.d(TAG, "buildZoomOptions: maxZoom=$maxZoomRatio < 2× — skipping")
             return emptyList()
         }
-        val selector = existingOptions.firstOrNull()?.selector ?: CameraSelector.DEFAULT_BACK_CAMERA
         val result = buildList {
             add(RearCameraOption(-1, "1×", selector, zoomRatio = 1.0f))
             add(RearCameraOption(-1, "2×", selector, zoomRatio = 2.0f))
             if (maxZoomRatio >= 5.0f) add(RearCameraOption(-1, "5×", selector, zoomRatio = 5.0f))
         }
-        Log.d(TAG, "buildZoomOptions: maxZoom=$maxZoomRatio → ${result.map { it.label }}")
+        Log.d(TAG, "buildZoomOptions: generic ladder, maxZoom=$maxZoomRatio → ${result.map { it.label }}")
         return result
+    }
+
+    /**
+     * Attempts to discover the *physical* lenses backing [logicalCameraId] via
+     * [CameraCharacteristics.getPhysicalCameraIds] (API 28+) and derive the zoom ratios at which
+     * the OS is likely to switch between them internally, using the same "35mm-equivalent focal
+     * length" math as [makeOption]. The lens with the shortest equivalent focal length is treated
+     * as the 1× baseline (matching the usual OEM convention that zoomRatio=1.0 is the main/wide
+     * lens).
+     *
+     * Returns an empty list when the API is unavailable, the logical camera reports fewer than 2
+     * distinct physical lenses, or characteristics cannot be read (some OEMs restrict this).
+     */
+    fun physicalLensZoomRatios(context: Context, logicalCameraId: String): List<Pair<String, Float>> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return emptyList()
+        return try {
+            val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            val physIds = manager.getCameraCharacteristics(logicalCameraId).physicalCameraIds
+            if (physIds.size < 2) return emptyList()
+            val equivMms = physIds.mapNotNull { physId ->
+                try {
+                    val chars = manager.getCameraCharacteristics(physId)
+                    val focal = chars.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
+                        ?.firstOrNull() ?: return@mapNotNull null
+                    val sensor = chars.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) ?: return@mapNotNull null
+                    val diagonal = sqrt(sensor.width * sensor.width + sensor.height * sensor.height)
+                    if (diagonal <= 0f) null else focal * FULL_FRAME_DIAGONAL_MM / diagonal
+                } catch (e: Exception) {
+                    null
+                }
+            }.sorted()
+            if (equivMms.size < 2) return emptyList()
+            val baseline = equivMms.first()
+            val ratios = equivMms.map { equiv -> equiv / baseline }
+                // Collapse near-identical ratios (e.g. two lenses reporting almost the same focal length).
+                .distinctBy { (it * 10).roundToInt() }
+            if (ratios.size < 2) return emptyList()
+            val result = ratios.map { ratio ->
+                val label = if (ratio <= 1.05f) "1×" else formatRatioLabel(ratio)
+                label to ratio
+            }
+            Log.d(TAG, "physicalLensZoomRatios: logicalId=$logicalCameraId → $result")
+            result
+        } catch (e: Exception) {
+            Log.w(TAG, "physicalLensZoomRatios failed for $logicalCameraId: ${e.message}")
+            emptyList()
+        }
+    }
+
+    private fun formatRatioLabel(ratio: Float): String {
+        val rounded = (ratio * 10).roundToInt() / 10f
+        val text = if (rounded == rounded.toInt().toFloat()) rounded.toInt().toString() else rounded.toString()
+        return "${text}×"
     }
 
     /** Index of the option whose equivalent focal length is closest to [BASE_EQUIV_MM]. */

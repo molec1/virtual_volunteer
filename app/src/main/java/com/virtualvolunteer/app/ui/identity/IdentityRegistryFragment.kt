@@ -20,6 +20,7 @@ import com.virtualvolunteer.app.VirtualVolunteerApp
 import com.virtualvolunteer.app.databinding.FragmentIdentityRegistryBinding
 import com.virtualvolunteer.app.ui.racedetail.ParticipantDetailFragment
 import com.virtualvolunteer.app.ui.racedetail.RaceDetailShareHelper
+import com.virtualvolunteer.app.ui.util.EdgeToEdgeInsets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -85,6 +86,10 @@ class IdentityRegistryFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        EdgeToEdgeInsets.applyStatusBarPadding(binding.identityRegistryHeader)
+        EdgeToEdgeInsets.applyNavigationBarPadding(binding.registryJsonActions)
+        binding.btnBack.setOnClickListener { findNavController().popBackStack() }
 
         val repo = (requireActivity().application as VirtualVolunteerApp).raceRepository
         val spanCount = if (resources.configuration.screenWidthDp >= 600) 4 else 2
