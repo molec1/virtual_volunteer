@@ -81,7 +81,7 @@ class RaceDetailOfflineTestActions(
                             )
                         }.onFailure {
                             Toast.makeText(ctx, R.string.reprocess_race_failed, Toast.LENGTH_SHORT).show()
-                            Log.w(logTag, "reprocess race failed", it)
+                            Log.w(logTag, "reprocess event failed", it)
                         }
                     }
                 }

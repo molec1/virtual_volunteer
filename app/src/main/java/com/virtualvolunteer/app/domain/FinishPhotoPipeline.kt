@@ -12,6 +12,7 @@ import com.virtualvolunteer.app.data.repository.RaceRepository
 import com.virtualvolunteer.app.domain.face.EmbeddingMath
 import com.virtualvolunteer.app.domain.face.FaceCropBounds
 import com.virtualvolunteer.app.domain.face.FaceEmbedder
+import com.virtualvolunteer.app.domain.face.FaceGeometryFilters
 import com.virtualvolunteer.app.domain.face.FaceThumbnailSaver
 import com.virtualvolunteer.app.domain.face.MlKitFaceDetector
 import com.virtualvolunteer.app.domain.face.OrientedPhotoBitmap
@@ -126,31 +127,6 @@ internal class FinishPhotoPipeline(
          * recorded (finish time unchanged) but don't pollute the embedding set.
          */
         private const val FINISH_EMBED_APPEND_MIN_COSINE = 0.50f
-
-        /**
-         * Edge-of-frame filter — two-part rule that suppresses bystanders/volunteers at
-         * the left or right edges of the finish corridor without removing genuine approaching
-         * runners (who may briefly be off-centre but have small, distant faces).
-         *
-         * Part A — Profile-peripheral filter (narrow face at edge):
-         *   Skip when width / height < [PERIPHERAL_PROFILE_ASPECT_RATIO] (sideways face)
-         *   AND |cx − 0.5| > [PERIPHERAL_X_HALF]
-         *   AND (face is alone in frame OR any other face is strictly more central by >[PERIPHERAL_CENTER_MARGIN]).
-         *   No area comparison: the side-view shape is already a strong enough discriminator.
-         *
-         * Part B — Frontal-edge filter (upright face at edge, large enough to be nearby):
-         *   Skip when width / height ≥ [PERIPHERAL_PROFILE_ASPECT_RATIO] (frontal face)
-         *   AND |cx − 0.5| > [FRONTAL_EDGE_X]
-         *   AND raw face area ≥ [FRONTAL_EDGE_MIN_AREA_PX2] (exclude small/distant approaching runners)
-         *   AND any other face in the same frame is strictly more central by > [PERIPHERAL_CENTER_MARGIN].
-         *   Faces below the area floor are kept: a tiny face at the edge is likely a runner
-         *   still approaching from far away, not a standing bystander.
-         */
-        private const val PERIPHERAL_PROFILE_ASPECT_RATIO = 0.65f
-        private const val PERIPHERAL_X_HALF = 0.19f
-        private const val PERIPHERAL_CENTER_MARGIN = 0.05f
-        private const val FRONTAL_EDGE_X = 0.20f
-        private const val FRONTAL_EDGE_MIN_AREA_PX2 = 15_000
     }
 
     private val recentFinishPhotosByRace = mutableMapOf<String, RecentFinishPhoto>()
@@ -275,35 +251,24 @@ internal class FinishPhotoPipeline(
                 val raw = Rect(face.boundingBox)
                 val rawFaceHeightPx = raw.height()
 
-                // Edge-of-frame filter — Part A (profile) and Part B (frontal).
-                val profileAspect = raw.width().toFloat() / rawFaceHeightPx
+                val profileAspect = if (rawFaceHeightPx <= 0) 1f else raw.width().toFloat() / rawFaceHeightPx
                 val rawCxNorm = raw.exactCenterX() / bmp.width
-                val cxHalfDist = kotlin.math.abs(rawCxNorm - 0.5f)
                 val faceRawArea = raw.width() * raw.height()
-                val isAlone = facesToProcess.size == 1
-                // Returns true if any other face in this photo is strictly more central.
-                fun hasCenterFace(): Boolean = !isAlone && facesToProcess.any { other ->
-                    if (other === face) return@any false
-                    val oCxNorm = other.boundingBox.exactCenterX() / bmp.width
-                    kotlin.math.abs(oCxNorm - 0.5f) < cxHalfDist - PERIPHERAL_CENTER_MARGIN
+                val otherCxNorms = facesToProcess.mapNotNull { other ->
+                    if (other === face) null else other.boundingBox.exactCenterX() / bmp.width
                 }
-                val isProfile = profileAspect < PERIPHERAL_PROFILE_ASPECT_RATIO
-                val edgeSkip = when {
-                    // Part A: profile (sideways) face at edge — skip if alone or any center face
-                    isProfile && cxHalfDist > PERIPHERAL_X_HALF ->
-                        isAlone || hasCenterFace()
-                    // Part B: frontal face at edge, large enough to be a nearby bystander —
-                    // skip only when a center face is present (lone edge runner is kept)
-                    !isProfile && cxHalfDist > FRONTAL_EDGE_X && faceRawArea >= FRONTAL_EDGE_MIN_AREA_PX2 ->
-                        hasCenterFace()
-                    else -> false
-                }
-                if (edgeSkip) {
-                    val tag = if (isProfile) "profile_peripheral_skip" else "frontal_edge_skip"
-                    val msg = "face#$faceNum $tag " +
+                val edgeSkipTag = FaceGeometryFilters.finishEdgeSkipTag(
+                    aspect = profileAspect,
+                    cxNorm = rawCxNorm,
+                    areaPx2 = faceRawArea,
+                    sizeFilteredCount = facesToProcess.size,
+                    otherCxNorms = otherCxNorms,
+                )
+                if (edgeSkipTag != null) {
+                    val msg = "face#$faceNum $edgeSkipTag " +
                         "aspect=${"%.2f".format(profileAspect)} " +
                         "cxNorm=${"%.3f".format(rawCxNorm)} " +
-                        "area=$faceRawArea alone=$isAlone"
+                        "area=$faceRawArea group=${facesToProcess.size}"
                     pipelineLog(msg); sb.appendLine(msg)
                     return@forEachIndexed
                 }

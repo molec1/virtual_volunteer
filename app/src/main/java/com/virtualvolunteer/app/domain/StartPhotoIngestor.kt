@@ -14,6 +14,7 @@ import com.virtualvolunteer.app.domain.face.EmbeddingMath
 import com.virtualvolunteer.app.domain.face.FaceCropBounds
 import com.virtualvolunteer.app.domain.face.FaceDebugOverlay
 import com.virtualvolunteer.app.domain.face.FaceEmbedder
+import com.virtualvolunteer.app.domain.face.FaceGeometryFilters
 import com.virtualvolunteer.app.domain.face.FaceThumbnailSaver
 import com.virtualvolunteer.app.domain.face.MlKitFaceDetector
 import com.virtualvolunteer.app.domain.face.OrientedPhotoBitmap
@@ -35,27 +36,6 @@ internal class StartPhotoIngestor(
 ) {
     companion object {
         private const val TAG = "RacePhotoProcessor"
-
-        /**
-         * Absolute horizontal-edge cutoff for start-photo face seeding.
-         *
-         * Faces whose normalised bounding-box centre X is more than this fraction from the
-         * image horizontal midpoint are skipped entirely — no embedding, no participant row.
-         * Unlike the finish-photo profile filter, no "dominated" condition is required here:
-         * start photos can legitimately have all faces at the periphery (crowd at the side),
-         * in which case a domination check would keep at least the most-central outlier.
-         *
-         * Rationale: participants at the start line approach the camera approximately face-on;
-         * spectators and volunteers standing at the side of the corridor appear near the frame
-         * edge.  Embedding those edge faces seeds garbage vectors into the matching pool and
-         * causes spurious finish-line identifications (e.g. race cc7a5378 pid=1143 seeded
-         * from a back-of-head at cx=0.700, drew four incorrect finish matches, and appeared
-         * as protocol row 7 marked TRASH by the operator).
-         *
-         * Value 0.20 means only faces whose centre is within the central 60 % of the frame
-         * width (cx ∈ [0.30, 0.70]) are accepted as participant seeds.
-         */
-        internal const val START_PERIPHERAL_HARD_X = 0.20f
     }
 
     /**
@@ -154,15 +134,20 @@ internal class StartPhotoIngestor(
                 return@runCatching 0
             }
 
-            // Absolute peripheral filter: skip faces at the horizontal frame edge.
-            // See START_PERIPHERAL_HARD_X kdoc for full rationale.
+            // Peripheral filter: strict central band, with a peer-group exception for
+            // 2–4 similarly sized frontal faces (see FaceGeometryFilters).
             val facesToSeed = facesToProcess.filter { face ->
-                val cxNorm = (face.boundingBox.left + face.boundingBox.right) / 2f / bmp.width
-                kotlin.math.abs(cxNorm - 0.5f) <= START_PERIPHERAL_HARD_X
+                val box = face.boundingBox
+                val cxNorm = (box.left + box.right) / 2f / bmp.width
+                val aspect = if (box.height() <= 0) 1f else box.width().toFloat() / box.height()
+                FaceGeometryFilters.keepStartPeripheral(cxNorm, aspect, facesToProcess.size)
             }
             val peripheralSkipped = facesToProcess.size - facesToSeed.size
             if (peripheralSkipped > 0) {
-                val msg = "startPhoto peripheralFilter skipped=$peripheralSkipped threshold=$START_PERIPHERAL_HARD_X"
+                val msg = "startPhoto peripheralFilter skipped=$peripheralSkipped " +
+                    "hardX=${FaceGeometryFilters.START_PERIPHERAL_HARD_X} " +
+                    "peerMax=${FaceGeometryFilters.PEER_GROUP_MAX_CX_HALF} " +
+                    "group=${facesToProcess.size}"
                 pipelineLog(msg); Log.i(TAG, msg)
             }
             if (facesToSeed.isEmpty()) {

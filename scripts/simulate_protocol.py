@@ -30,6 +30,9 @@ Constants (mirror the Kotlin code)
   PERIPHERAL_AREA_DOMINATION    = 1.3
   PERIPHERAL_CENTER_MARGIN      = 0.05
   START_PERIPHERAL_HARD_X       = 0.20    (absolute start-photo edge cutoff)
+  PEER_GROUP_MAX_CX_HALF        = 0.30    (peer-group exception outer bound)
+  PEER_GROUP_MIN_COUNT         = 2
+  PEER_GROUP_MAX_COUNT         = 4
   SERIES_TIGHT_WINDOW_MS        = 2_000
   SERIES_TIGHT_COSINE           = 0.20
   SERIES_NORMAL_COSINE          = 0.30
@@ -46,7 +49,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 # ---------------------------------------------------------------------------
-# Constants (keep in sync with FinishPhotoPipeline / StartPhotoIngestor)
+# Constants (keep in sync with FaceGeometryFilters / FinishPhotoPipeline)
 # ---------------------------------------------------------------------------
 SMALL_FACE_HARD_FLOOR_PX2 = 3_000
 SMALL_FACE_MIN_AREA_PX2   = 10_000
@@ -59,6 +62,9 @@ FRONTAL_EDGE_X             = 0.20
 FRONTAL_EDGE_MIN_AREA_PX2  = 15_000
 
 START_PERIPHERAL_HARD_X = 0.20
+PEER_GROUP_MAX_CX_HALF  = 0.30
+PEER_GROUP_MIN_COUNT     = 2
+PEER_GROUP_MAX_COUNT     = 4
 
 SERIES_TIGHT_WINDOW_MS  = 2_000
 SERIES_TIGHT_COSINE     = 0.20
@@ -145,8 +151,25 @@ def race_time(ts_ms: int, start_ms: int) -> str:
     return f"{sign}{s // 60}:{s % 60:02d}"
 
 # ---------------------------------------------------------------------------
-# Filter predicates (mirror FinishPhotoPipeline logic)
+# Filter predicates (mirror FaceGeometryFilters)
 # ---------------------------------------------------------------------------
+
+def _is_peer_group(n: int) -> bool:
+    return PEER_GROUP_MIN_COUNT <= n <= PEER_GROUP_MAX_COUNT
+
+
+def _is_frontal(aspect: float) -> bool:
+    return aspect >= PERIPHERAL_PROFILE_ASPECT
+
+
+def keep_start_peripheral(cx: float, aspect: float, size_filtered_count: int) -> bool:
+    half = abs(cx - 0.5)
+    if half <= START_PERIPHERAL_HARD_X:
+        return True
+    if half > PEER_GROUP_MAX_CX_HALF:
+        return False
+    return _is_peer_group(size_filtered_count) and _is_frontal(aspect)
+
 
 def _has_center_face(face, photo_faces) -> bool:
     """Any other face strictly more central than this face by > PERIPHERAL_CENTER_MARGIN."""
@@ -158,21 +181,28 @@ def _has_center_face(face, photo_faces) -> bool:
 
 
 def is_edge_filtered(face, photo_faces) -> bool:
-    """Returns True if this face should be skipped by the two-part edge filter."""
+    """Returns True if this face should be skipped by the two-part edge filter.
+
+    Group count and centre-domination use the size-filtered set (same as Kotlin
+    `facesToProcess`).
+    """
+    size_kept = [f for f in photo_faces if size_filter_would_keep(f, photo_faces)]
     ar = face["w"] / face["h"] if face["h"] > 0 else 1.0
     cx_half = abs(face["cx"] - 0.5)
-    is_profile = ar < PERIPHERAL_PROFILE_ASPECT
-    is_alone   = len(photo_faces) == 1
+    is_profile = not _is_frontal(ar)
+    is_alone   = len(size_kept) == 1
+    has_center = _has_center_face(face, size_kept)
 
-    # Part A: profile face at edge
     if is_profile and cx_half > PERIPHERAL_X_HALF:
-        return is_alone or _has_center_face(face, photo_faces)
+        return is_alone or has_center
 
-    # Part B: frontal face at edge, large enough to be a nearby bystander
     if (not is_profile
             and cx_half > FRONTAL_EDGE_X
-            and face["area"] >= FRONTAL_EDGE_MIN_AREA_PX2):
-        return _has_center_face(face, photo_faces)
+            and face["area"] >= FRONTAL_EDGE_MIN_AREA_PX2
+            and has_center):
+        if _is_peer_group(len(size_kept)) and cx_half <= PEER_GROUP_MAX_CX_HALF:
+            return False
+        return True
 
     return False
 
@@ -294,11 +324,17 @@ def main():
         for face in sorted(faces, key=lambda x: -x["area"]):
             hard_fail  = face["area"] < SMALL_FACE_HARD_FLOOR_PX2
             small_fail = cutoff > 0 and face["area"] < cutoff
-            periph_fail = abs(face["cx"] - 0.5) > START_PERIPHERAL_HARD_X
+            size_filtered_count = sum(
+                1 for f in faces
+                if f["area"] >= SMALL_FACE_HARD_FLOOR_PX2
+                and (cutoff == 0 or f["area"] >= cutoff)
+            )
+            ar = face["w"] / face["h"] if face["h"] else 1.0
+            periph_fail = not keep_start_peripheral(face["cx"], ar, size_filtered_count)
             status = "SKIP" if (hard_fail or small_fail or periph_fail) else "KEEP"
             reason = ("hard_floor" if hard_fail else
                       "small_relative" if small_fail else
-                      f"peripheral |cx-0.5|={abs(face['cx']-0.5):.3f}>{START_PERIPHERAL_HARD_X}" if periph_fail
+                      f"peripheral |cx-0.5|={abs(face['cx']-0.5):.3f}" if periph_fail
                       else "ok")
             print(f"  [{status}] {fn}  pid={face['pid']}  cx={face['cx']:.3f}  "
                   f"area={face['area']:,}  ar={face['w']/face['h']:.2f}  reason={reason}")
@@ -468,6 +504,9 @@ def main():
     print(f"    FRONTAL_EDGE_X             = {FRONTAL_EDGE_X}")
     print(f"    FRONTAL_EDGE_MIN_AREA_PX2  = {FRONTAL_EDGE_MIN_AREA_PX2}")
     print(f"    START_PERIPHERAL_HARD_X    = {START_PERIPHERAL_HARD_X}")
+    print(f"    PEER_GROUP_MAX_CX_HALF     = {PEER_GROUP_MAX_CX_HALF}")
+    print(f"    PEER_GROUP_MIN_COUNT       = {PEER_GROUP_MIN_COUNT}")
+    print(f"    PEER_GROUP_MAX_COUNT       = {PEER_GROUP_MAX_COUNT}")
     print(f"    SERIES_TIGHT_WINDOW_MS     = {SERIES_TIGHT_WINDOW_MS}")
     print(f"    SERIES_TIGHT_COSINE        = {SERIES_TIGHT_COSINE}")
     print(f"    SERIES_NORMAL_COSINE       = {SERIES_NORMAL_COSINE}")

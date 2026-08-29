@@ -48,10 +48,10 @@
     <string name="finish_debug_dialog_title">Finish photo debug</string>
     <string name="test_protocol_built">Test protocol built. Debug log saved.</string>
     <string name="test_protocol_failed">Could not build test protocol</string>
-    <string name="btn_reprocess_race">Reprocess race from disk</string>
+    <string name="btn_reprocess_race">Reprocess event from disk</string>
     <string name="btn_export_debug_bundle">Export debug bundle (no photos)</string>
     <string name="export_debug_bundle_failed">Debug export failed</string>
-    <string name="reprocess_race_title">Reprocess race?</string>
+    <string name="reprocess_race_title">Reprocess event?</string>
     <string name="reprocess_race_message">Deletes all participants, finish times, and face crops for this race, then re-runs detection and matching on every stored start and finish photo. Original full-frame photos are kept. Scan codes and names are reapplied when a new face matches the saved embedding (same threshold as finish matching).</string>
     <string name="reprocess_race_confirm">Reprocess</string>
     <string name="reprocess_race_success_format">Reprocessed: %1$d start photos (%2$d faces, %7$d ingest failures), %3$d finish photos (%4$d new rows, %8$d ingest failures). Restored %5$d of %6$d scan/name hints.</string>

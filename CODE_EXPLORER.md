@@ -57,7 +57,7 @@ Paths are from `app/src/main/java/com/virtualvolunteer/app/` unless noted as `re
 | **Identity** after start embedding | `domain/identity/GlobalIdentityResolution.kt` |
 | **Time** (EXIF, etc.) | `domain/time/PhotoTimestampResolver.kt` |
 | **Debug** (finish photo diagnostics) | `domain/debug/FinishPhotoDebugReport.kt` |
-| **Face / ML** | `domain/face/`: `MlKitFaceDetector.kt`, `TfliteFaceEmbedder.kt` / `FaceEmbedder.kt`, `FaceCropLuminanceNormalizer.kt`, `OrientedPhotoBitmap.kt`, `FaceThumbnailSaver.kt`, `FaceCropBounds.kt`, `EmbeddingMath.kt`, `FaceDebugOverlay.kt` |
+| **Face / ML** | `domain/face/`: `MlKitFaceDetector.kt`, `TfliteFaceEmbedder.kt` / `FaceEmbedder.kt`, `FaceCropLuminanceNormalizer.kt`, `OrientedPhotoBitmap.kt`, `FaceThumbnailSaver.kt`, `FaceCropBounds.kt`, `FaceGeometryFilters.kt` (size-independent edge / peer-group rules), `EmbeddingMath.kt`, `FaceDebugOverlay.kt` |
 | **Face embedding regression (JVM)** | `:face-embedding-regression` (`LocalFaceCropEmbedder`, `FaceEmbeddingRegressionMain`, `FaceJvmSamePersonRegression`, report); root **`./gradlew faceEmbeddingRegressionTest`** — scans **`testdata/face_matching/same_persons/<id>/`** if present else **`testdata/face_matching/<id>/`** |
 | **Face embedding regression (connected androidTest)** | `app/src/androidTest/java/com/virtualvolunteer/app/regression/` (`ConnectedFaceEmbeddingRegressionTest`, comparator + report); **`prepareFaceMatchingAndroidTestAssets`** copies **`testdata/face_matching/`** into `app/build/generated/…` for the test APK |
 | **Future** placeholder for known participants | `domain/future/FutureKnownParticipant.kt` |

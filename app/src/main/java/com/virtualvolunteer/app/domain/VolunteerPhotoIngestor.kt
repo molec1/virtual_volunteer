@@ -12,6 +12,7 @@ import com.virtualvolunteer.app.data.repository.RaceRepository
 import com.virtualvolunteer.app.domain.face.EmbeddingMath
 import com.virtualvolunteer.app.domain.face.FaceCropBounds
 import com.virtualvolunteer.app.domain.face.FaceEmbedder
+import com.virtualvolunteer.app.domain.face.FaceGeometryFilters
 import com.virtualvolunteer.app.domain.face.FaceThumbnailSaver
 import com.virtualvolunteer.app.domain.face.MlKitFaceDetector
 import com.virtualvolunteer.app.domain.face.OrientedPhotoBitmap
@@ -105,14 +106,20 @@ internal class VolunteerPhotoIngestor(
                 return@runCatching 0
             }
 
-            // Apply the same horizontal-peripheral filter as start photos.
             val facesToSeed = facesToProcess.filter { face ->
-                val cxNorm = (face.boundingBox.left + face.boundingBox.right) / 2f / bmp.width
-                kotlin.math.abs(cxNorm - 0.5f) <= StartPhotoIngestor.START_PERIPHERAL_HARD_X
+                val box = face.boundingBox
+                val cxNorm = (box.left + box.right) / 2f / bmp.width
+                val aspect = if (box.height() <= 0) 1f else box.width().toFloat() / box.height()
+                FaceGeometryFilters.keepStartPeripheral(cxNorm, aspect, facesToProcess.size)
             }
             val peripheralSkipped = facesToProcess.size - facesToSeed.size
             if (peripheralSkipped > 0) {
-                pipelineLog("volunteerPhoto peripheralFilter skipped=$peripheralSkipped threshold=${StartPhotoIngestor.START_PERIPHERAL_HARD_X}")
+                pipelineLog(
+                    "volunteerPhoto peripheralFilter skipped=$peripheralSkipped " +
+                        "hardX=${FaceGeometryFilters.START_PERIPHERAL_HARD_X} " +
+                        "peerMax=${FaceGeometryFilters.PEER_GROUP_MAX_CX_HALF} " +
+                        "group=${facesToProcess.size}",
+                )
             }
             if (facesToSeed.isEmpty()) {
                 pipelineLog("STOP: no faces after peripheral filter")
